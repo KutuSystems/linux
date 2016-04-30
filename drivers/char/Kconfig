@@ -603,6 +603,6 @@ config TILE_SROM
 	  how to partition a single ROM for multiple purposes.
 
 source "drivers/char/xillybus/Kconfig"
+source "drivers/char/hawk_fos/Kconfig"
 
 endmenu
-

@@ -1,0 +1,10 @@
+#
+# hawk_fos device
+#
+
+config HAWK_FOS
+	tristate "HAWK FOS PCIe driver"
+	depends on PCI
+	help
+	  HAWK_FOS is a FOS driver for the KC705 version of the FOS system.
+	  If unsure, say N.
