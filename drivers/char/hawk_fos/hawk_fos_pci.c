@@ -514,26 +514,26 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
    //
    // allocate mmap area
    //
-/*
-   fos->dma_addr = dma_alloc_coherent(NULL, DMA_LENGTH, &fos->dma_handle, GFP_KERNEL);
 
-   dev_info(&pdev->dev, "dma_addr = 0x%x, dma_handle = 0x%x\n",(u32)fos->dma_addr,(u32)fos->dma_handle);
-   dev_info(&pdev->dev, "fos base = 0x%x, dma base = 0x%x\n",(u32)fos->base,(u32)fos->dma_base);
+   fos->dma_addr = dma_alloc_coherent(&pdev->dev, DMA_LENGTH, &fos->dma_handle, (GFP_KERNEL|GFP_DMA32));
+
+   //dev_info(&pdev->dev, "dma_addr = 0x%x, dma_handle = 0x%x\n",(u32)(fos->dma_addr),(u32)fos->dma_handle);
+   //dev_info(&pdev->dev, "fos base = 0x%x\n",(u32)fos->base);
 
    if (!fos->dma_addr) {
       printk(KERN_ERR "<%s> Error: allocating dma memory failed\n", MODULE_NAME);
 
       ret = -ENOMEM;
       goto failed8;
+   } else {
+      dev_info(&pdev->dev, "Successfully allocated dma memory\n");
    }
-   dev_info(&pdev->dev, "Successfully allocated dma memory\n");
-
    dev_info(&pdev->dev, "Hawk FOS finished loading driver\n");
-*/
+
    return 0;
 
-//failed8:
-//   device_destroy(fos->class, fos->devt);
+failed8:
+   device_destroy(fos->class, fos->devt);
 failed7:
    class_destroy(fos->class);
 failed6:
