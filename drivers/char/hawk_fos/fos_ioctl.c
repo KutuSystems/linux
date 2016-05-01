@@ -43,7 +43,6 @@ u32 FOS_Status(struct fos_drvdata *fos)
    u32 status;
 
    status = fos_read_reg(fos, R_RUN_STATUS);
-   status &= 0x000000ff;
 
    return status;
 }
@@ -117,6 +116,7 @@ int FOS_Run_Test(struct fos_drvdata *fos, void *user_ptr)
    if (FOS_Status(fos) & TEST_RUNNING_FLAG)
       return -3;
 
+   adc_count_value = cmd.adc_count;
    if ((cmd.config & MODE_BITS) == BOTDA_MODE) {
       // write out BOTDA format data
       adc_count_value = cmd.adc_count + 15;
@@ -266,7 +266,7 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
 
    // write number of 64-bit transfers to dma size register
    dma_size = (read_cmd->num_rows *read_cmd->num_columns* read_cmd->datatype)>>3;
-   fos_write_reg(fos, R_DMA_SIZE, dma_size);
+   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, dma_size);
 #ifdef DEBUG
   printk(KERN_DEBUG "DMA size = 0x%d = %d 64-bit words\n",dma_size,dma_size);
 #endif
@@ -373,25 +373,22 @@ int FOS_Read_Data(struct fos_drvdata *fos, struct FOS_read_data_struct *cmd)
    printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d, size = %d\n",row_stride,num_columns*32,num_rows,size);
 #endif
 
-   fos_write_reg(fos, R_DATA_READ_ADDR, (u32)(addr & 0x00000000ffffffff));
-   fos_write_reg(fos, R_DATA_READ_STRIDE, row_stride);
-   fos_write_reg(fos, R_DATA_READ_COL_COUNT, (num_columns*data_size/2));
-   fos_write_reg(fos, R_DATA_READ_ROW_COUNT, num_rows);
+   fos_write_reg(fos, R_MIG2HOST_READ_ADDR, (u32)(addr & 0x00000000ffffffff));
+   fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
+   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, (num_columns*data_size/2));
+   fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
 //   fos_write_reg(fos, R_DATA_READ_START, size);
 
    // if DMA transfer then start controller
    if (cmd->dma_active == 1) {
       // start write to memory (max = 8M - 1), so use 4Mbyte blocks max
-#ifdef DEBUG
-      printk(KERN_DEBUG "S2MM_DA = 0x%x, S2MM_LENGTH = 0x%x = %d\n",(fos->dma_handle + cmd->dma_addr_offset),(size*8),(size*8));
-#endif
 
       fosdma_write_reg(fos, S2MM_DMACR, 1);
       fosdma_write_reg(fos, S2MM_DA, fos->dma_handle + cmd->dma_addr_offset);
       fosdma_write_reg(fos, S2MM_LENGTH, (size*8));
-      fos_write_reg(fos, R_DATA_READ_START, size);
+      fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, size);
    } else {
-      fos_write_reg(fos, R_DATA_READ_START, size);
+      fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, size);
 
       //
       // wait until fifo has data
@@ -403,7 +400,7 @@ int FOS_Read_Data(struct fos_drvdata *fos, struct FOS_read_data_struct *cmd)
 #ifdef DEBUG
             printk(KERN_DEBUG "Failure to get data, RETRY read!!\n");
 #endif
-            fos_write_reg(fos, R_DATA_READ_START, size);
+            fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, size);
          }
       }
    }

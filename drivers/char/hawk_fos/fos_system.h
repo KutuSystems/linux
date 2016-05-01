@@ -32,12 +32,12 @@
 #define R_RUN_TEST               0x0008
 #define R_CONFIG                 0x000C
 
-#define R_DATA_READ_ADDR         0x0010   // read address on 64 byte boundaries
-#define R_DATA_READ_STRIDE       0x0014
-#define R_DATA_READ_COL_COUNT    0x0018
-#define R_DATA_READ_ROW_COUNT    0x001C
+#define R_MIG2HOST_READ_ADDR     0x0010   // read address on 64 byte boundaries
+#define R_MIG2HOST_STRIDE        0x0014
+#define R_MIG2HOST_COL_COUNT     0x0018
+#define R_MIG2HOST_WRITE_ADDR    0x001C
+#define R_MIG2HOST_ROW_COUNT     0x0020
 
-#define R_DATA_READ_START        0x0020   // read address on 64 byte boundaries
 #define R_MEM_STRIDE             0x0024   // Write number of 256byte blocks to read
 #define R_SPI_PORT_SPEED         0x0028   // Set SPI port speed
 
@@ -56,13 +56,13 @@
 #define R_SPI6                   0x0058
 #define R_SPI7                   0x005C   // This register doesn't exist
 
-#define R_DATA_WRITE             0x0060   // WRITE address on 64 byte boundaries
-#define R_DATA_WRITE_STRIDE      0x0064
-#define R_DATA_WRITE_COL_COUNT   0x0068
-#define R_DATA_WRITE_ROW_COUNT   0x006C
-#define R_DATA_WRITE_START       0x0070   // write address on 64 byte boundaries
+#define R_HOST2MIG_WRITE_ADDR    0x0060   // WRITE address on 64 byte boundaries
+#define R_HOST2MIG_STRIDE        0x0064
+#define R_HOST2MIG_COL_COUNT     0x0068
+#define R_HOST2MIG_READ_ADDR     0x006C
+#define R_HOST2MIG_ROW_COUNT     0x0070
 
-#define R_DMA_SIZE               0x0074   // size of DMA transfers
+#define R_INTERRUPT              0x0074   // size of DMA transfers
 
 #define R_RUN_STATUS             0x0000   // read status
 

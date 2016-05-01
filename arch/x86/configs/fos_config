@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 4.6.0-rc4 Kernel Configuration
+# Linux/x86 4.6.0-rc5 Kernel Configuration
 #
 CONFIG_64BIT=y
 CONFIG_X86_64=y
@@ -1791,7 +1791,17 @@ CONFIG_REGMAP_MMIO=y
 CONFIG_REGMAP_IRQ=y
 CONFIG_DMA_SHARED_BUFFER=y
 # CONFIG_FENCE_TRACE is not set
-# CONFIG_DMA_CMA is not set
+CONFIG_DMA_CMA=y
+
+#
+# Default contiguous memory area size:
+#
+CONFIG_CMA_SIZE_MBYTES=256
+CONFIG_CMA_SIZE_SEL_MBYTES=y
+# CONFIG_CMA_SIZE_SEL_PERCENTAGE is not set
+# CONFIG_CMA_SIZE_SEL_MIN is not set
+# CONFIG_CMA_SIZE_SEL_MAX is not set
+CONFIG_CMA_ALIGNMENT=8
 
 #
 # Bus devices
@@ -3638,6 +3648,7 @@ CONFIG_SERIAL_8250_SHARE_IRQ=y
 CONFIG_SERIAL_8250_RSA=y
 # CONFIG_SERIAL_8250_FSL is not set
 CONFIG_SERIAL_8250_DW=m
+# CONFIG_SERIAL_8250_RT288X is not set
 CONFIG_SERIAL_8250_FINTEK=m
 # CONFIG_SERIAL_8250_MID is not set
 # CONFIG_SERIAL_8250_MOXA is not set

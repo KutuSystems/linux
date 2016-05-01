@@ -313,16 +313,8 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             return 0;
          }
 
-         if (debug_cmd.cmd == FOS_DEBUG_DMA_WRITE) {
-            fosdma_write_reg(fos, debug_cmd.reg, debug_cmd.data);
-            return 0 ;
-         }
-
          if (debug_cmd.cmd == FOS_DEBUG_READ)
             debug_cmd.data = fos_read_reg(fos, debug_cmd.reg);
-
-         if (debug_cmd.cmd == FOS_DEBUG_DMA_READ)
-            debug_cmd.data = fosdma_read_reg(fos, debug_cmd.reg);
 
          if (copy_to_user(arg_ptr, &debug_cmd, sizeof(debug_cmd))) {
             return -EFAULT;
@@ -345,38 +337,16 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 irqreturn_t fos_isr(int irq, void *data)
 {
    struct fos_drvdata *fos = data;
-   u32   dma_block,current_row;
-   struct FOS_read_data_struct *read_cmd;
+   u32   status;
 
    spin_lock(&fos->lock);
 
-   // clear interrupt
-   fos_write_reg(fos, R_BOTDA_END_FREQ, REPEAT_LOOP|INTERRUPT_ACTIVE|REPEAT_COUNT);
+   status = (fos_read_reg(fos, R_RUN_STATUS) >> 7) & 0x1ff;
+
+   // clear interrupt and disable
+   fos_write_reg(fos, R_INTERRUPT,(status << 16));
 
    fos->irq_count++;
-
-   read_cmd = &fos->repeat_read_cmd;
-   // Start DMA read
-//   fos->dma_block_count++;
-//   dma_block = fos->dma_block_count & 0x7;
-
-   current_row = fos_read_reg(fos,R_FREQUENCY_STATUS);
-
-   dma_block = current_row >> 7;
-
-   fos->dma_block_count = dma_block;
-
-   printk(KERN_DEBUG "<%s> :  interrupt : current_row = %d, current_block = %d\n",MODULE_NAME,current_row,dma_block);
-
-   // set rows to read
-   read_cmd->row = 128 * dma_block;
-
-   // set address offset in command
-   read_cmd->dma_addr_offset = dma_block * (DMA_LENGTH>>3);
-   if (FOS_Read_Data(fos, read_cmd)) {
-      // failed so shut off interrupt
-      fos_write_reg(fos, R_BOTDA_END_FREQ, REPEAT_COUNT);
-   }
 
    spin_unlock(&fos->lock);
 
