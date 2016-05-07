@@ -283,130 +283,110 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
 
 
 //
-// FOS_Read_Data()
+// FOS_tfer_mig2host()
 //
 // Read a 2-dimensional block of data from test
 // data is available immediately
 // -1 is returned if error, number of bytes is returned if ok.
 //
-int FOS_Read_Data(struct fos_drvdata *fos, struct FOS_read_data_struct *cmd)
+int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd)
 {
-   u64 addr;
-   u32 i;
+   u32 transfer_size,last_addr;
+   u32 num_columns, num_rows, row_stride;
 
-   u32 size,data_size;
-   u32 count;
-   u32 column, row, num_columns, num_rows, row_stride, datatype;
+   num_columns = cmd->num_columns & 0xffffffc0;
+   if (num_columns != cmd->num_columns) {
+      printk(KERN_DEBUG "columns not aligned to 64 bytes = %d\n",cmd->num_columns);
+      return -1;
+   }
 
-   column      = cmd->column;
-   row         = cmd->row;
-   num_columns = cmd->num_columns;
    num_rows    = cmd->num_rows;
-   row_stride  = cmd->row_stride;
-   datatype    = cmd->datatype;
 
-   data_size   = 0;
-   count       = 0;
+   transfer_size = num_rows * num_columns;
+   last_addr = cmd->host_offset_addr + transfer_size;
 
-   fosdma_write_reg(fos, S2MM_DMACR, 4);
-
-   if (row > 8200) {
-#ifdef DEBUG
-      printk(KERN_DEBUG "Too many rows = %d\n",row);
-#endif
-      return -1;
+   if (last_addr > DMA_LENGTH) {
+      printk(KERN_DEBUG "Transfer range outside of allowable range, start = 0x%08x, end offset - 0x%08x\n",cmd->host_offset_addr,last_addr);
+      return -2;
    }
 
-   if ((row+num_rows) > 8200) {
-#ifdef DEBUG
-      printk(KERN_DEBUG "Too many rows + num_rows = %d\n",row+num_rows);
-#endif
-      return -1;
+   row_stride  = cmd->mig_stride;
+
+   if (transfer_size == 0) {
+      printk(KERN_DEBUG "transfer size not valid = %d\n",transfer_size);
+      return -3;
    }
 
-   if (datatype == COTDR_DATA_SIZE) {
-      data_size = COTDR_DATA_SIZE;
-      if (column & 1)
-         return -2;
-      if (num_columns & 1)
-         return -3;
-   }
-   if (datatype == BOTDA_DATA_SIZE)
-      data_size = BOTDA_DATA_SIZE;
-   if (datatype == ROTDR_DATA_SIZE)
-      data_size = ROTDR_DATA_SIZE;
-
-   if (data_size == 0) {
 #ifdef DEBUG
-      printk(KERN_DEBUG "data size not valid = %d\n",data_size);
+   printk(KERN_DEBUG "Address for mig2host transfer is 0x%08x, size of request is %d blocks\n",cmd->mig_base_address,transfer_size);
+   printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d\n",row_stride,num_columns,num_rows);
 #endif
-      return -4;
-   }
-
-   // set DMA mode
-   if (cmd->dma_active == 1)
-      fos->config_state |= DMA_ACTIVE;
-   else
-      fos->config_state &= ~DMA_ACTIVE;
-
-   fos_write_reg(fos, R_CONFIG, fos->config_state);
-
-   addr = (u64)data_size * (u64)column + (u64)row_stride*(u64)row;
-#ifdef DEBUG
-   printk(KERN_DEBUG "addr = 0x%llx\n",addr);
-#endif
-
-
-   // size is size of transfer in 64 bit words
-   size = (data_size * num_columns * num_rows) >> 3;
-#ifdef DEBUG
-   printk(KERN_DEBUG "size = %d, data_size = %d, num_columns = %d, addr = 0x%llx\n",size,data_size,num_columns,addr);
-#endif
-
-   //
-   // loop for each row
-   //
-   num_columns >>= 5;
-
-#ifdef DEBUG
-   printk(KERN_DEBUG "Address for read is 0x%llx, size of request is %d blocks\n",addr,size);
-   printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d, size = %d\n",row_stride,num_columns*32,num_rows,size);
-#endif
-
-   fos_write_reg(fos, R_MIG2HOST_READ_ADDR, (u32)(addr & 0x00000000ffffffff));
-   fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
-   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, (num_columns*data_size/2));
-   fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
-//   fos_write_reg(fos, R_DATA_READ_START, size);
 
    // if DMA transfer then start controller
-   if (cmd->dma_active == 1) {
-      // start write to memory (max = 8M - 1), so use 4Mbyte blocks max
-
-      fosdma_write_reg(fos, S2MM_DMACR, 1);
-      fosdma_write_reg(fos, S2MM_DA, fos->dma_handle + cmd->dma_addr_offset);
-      fosdma_write_reg(fos, S2MM_LENGTH, (size*8));
-      fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, size);
-   } else {
-      fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, size);
-
-      //
-      // wait until fifo has data
-      //
-      i = 0;
-      while ((FOS_Status(fos) & FIFO_EMPTY_FLAG) && (i < MAX_WAIT_COUNT)) {
-         i++;
-         if ((i&31) == 31) {
-#ifdef DEBUG
-            printk(KERN_DEBUG "Failure to get data, RETRY read!!\n");
-#endif
-            fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, size);
-         }
-      }
-   }
+   fos_write_reg(fos, R_MIG2HOST_READ_ADDR, cmd->mig_base_address);
+   fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
+   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, num_columns);
+   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
+   fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
 
    return 0;
 }
+
+//
+// FOS_tfer_host2mig()
+//
+// Read a 2-dimensional block of data from test
+// data is available immediately
+// -1 is returned if error, number of bytes is returned if ok.
+//
+int FOS_tfer_host2mig(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd)
+{
+   u32 transfer_size,last_addr;
+   u32 num_columns, num_rows, row_stride;
+
+   num_columns = cmd->num_columns & 0xffffffc0;
+   if (num_columns != cmd->num_columns) {
+      printk(KERN_DEBUG "columns not aligned to 64 bytes = %d\n",cmd->num_columns);
+      return -1;
+   }
+
+   num_rows    = cmd->num_rows;
+
+   transfer_size = num_rows * num_columns;
+   last_addr = cmd->host_offset_addr + transfer_size;
+
+   if (last_addr > DMA_LENGTH) {
+      printk(KERN_DEBUG "Transfer range outside of allowable range, start = 0x%08x, end offset - 0x%08x\n",cmd->host_offset_addr,last_addr);
+      return -2;
+   }
+
+   row_stride  = cmd->mig_stride;
+
+   if (transfer_size == 0) {
+      printk(KERN_DEBUG "transfer size not valid = %d\n",transfer_size);
+      return -3;
+   }
+
+#ifdef DEBUG
+   printk(KERN_DEBUG "Address for mig2host transfer is 0x%08x, size of request is %d blocks\n",cmd->mig_base_address,transfer_size);
+   printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d\n",row_stride,num_columns,num_rows);
+#endif
+
+   // if DMA transfer then start controller
+   fos_write_reg(fos, R_HOST2MIG_READ_ADDR, cmd->mig_base_address);
+   fos_write_reg(fos, R_HOST2MIG_STRIDE, row_stride);
+   fos_write_reg(fos, R_HOST2MIG_COL_COUNT, num_columns);
+   fos_write_reg(fos, R_HOST2MIG_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
+   fos_write_reg(fos, R_HOST2MIG_ROW_COUNT, num_rows);
+
+   return 0;
+}
+
+
+
+
+
+
 
 //
 // FOS_Read_Frequency()
@@ -439,7 +419,7 @@ int FOS_Read_Frequency(struct fos_drvdata *fos, void *arg_ptr)
 //
 int FOS_SPI_Write(struct fos_drvdata *fos, void *user_ptr)
 {
-   u32   i,j,addr;
+   u32   i,j,addr,data,num_bytes;
 
    struct FOS_spi_cmd_struct  cmd;
 
@@ -469,14 +449,32 @@ int FOS_SPI_Write(struct fos_drvdata *fos, void *user_ptr)
          return -EFAULT;
 
       addr = R_SPI0 + 4*cmd.port_addr[j];
-      fos_write_reg(fos, addr, cmd.port_data[j]);
-
+      num_bytes = cmd.num_bytes[j] << 24;
+      data = cmd.port_data[j] & 0xffffff;
+      data |= num_bytes;
+      fos_write_reg(fos, addr, data);
+      printk(KERN_DEBUG "Wrote register 0x%x with val = 0x%x\n",addr,data);
       // wait until SPI write completes
       i = 0;
       while ((FOS_Status(fos) & SPI_BUSY_FLAG) && (i < MAX_WAIT_COUNT))
          i++;
+#ifdef DEBUG
+      printk(KERN_DEBUG "Looped through SPI wait %d times\n",i);
+#endif
+
+      // readback data
+
+      data = fos_read_reg(fos,R_FOS_SPI_READ_BASE);
+      cmd.port_data[j] = data;
+      printk(KERN_DEBUG "Read back 0x%x from SPI port\n",data);
 
    }
+
+   if (copy_to_user(user_ptr, &cmd, sizeof(cmd))) {
+      printk(KERN_DEBUG "FOS_SPI_Write: copy_to_user failed\n");
+      return -EFAULT;
+   }
+
    return 0;
 }
 

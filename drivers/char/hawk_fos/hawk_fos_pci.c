@@ -65,6 +65,15 @@ static int fos_open(struct inode *i, struct file *filp)
    fos = container_of(i->i_cdev, struct fos_drvdata, cdev);
 
    fos->irq_count = 0;
+   fos->arbiter_int_count = 0;
+   fos->mig2host_int_count = 0;
+   fos->host2mig_int_count = 0;
+   fos->debug_int_count = 0;
+   fos->edfa_int_count = 0;
+   fos->rs485_int_count = 0;
+   fos->i2c_int_count = 0;
+   fos->gpio_int_count = 0;
+   fos->spi_int_count = 0;
 
    printk(KERN_DEBUG "<%s> file: open()\n", MODULE_NAME);
    filp->private_data = fos;
@@ -137,12 +146,6 @@ static ssize_t fos_read(struct file *f, char __user * buf, size_t
    count = len;
    ptr   = buf;
 
-   while (count > 1024) {
-      memcpy(ptr, fos->base + R_FOS_FIFO_BASE, 1024);
-      count -= 1024;
-      ptr+= 1024;
-   }
-   memcpy(ptr, fos->base + R_FOS_FIFO_BASE, count);
 
    return len;
 }
@@ -153,9 +156,11 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
    //   int __user *ip = (int __user *)arg;
    void  *arg_ptr = (void *)arg;
    long  ret = 0;
+   u32      val;
    unsigned int s2mm_status;
-   struct FOS_read_data_struct read_cmd;
+   struct FOS_transfer_data_struct tfer_cmd;
    struct FOS_debug_struct debug_cmd;
+   struct FOS_int_status_struct int_status;
 
    //printk(KERN_DEBUG "<%s> ioctl: entered fos_ioctl\n", MODULE_NAME);
 
@@ -206,14 +211,24 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
          }
          return 0;
 
-      case FOS_USER_READ_DATA:
+      case FOS_USER_MIG2HOST_DATA:
 
-         if (copy_from_user(&read_cmd, arg_ptr, sizeof(read_cmd))) {
+         if (copy_from_user(&tfer_cmd, arg_ptr, sizeof(tfer_cmd))) {
             printk(KERN_DEBUG "FOS_USER_READ_DATA: copy failed\n");
 
             return -EFAULT;
          }
-         ret = FOS_Read_Data(fos, &read_cmd);
+         ret = FOS_tfer_mig2host(fos, &tfer_cmd);
+         return ret;
+
+      case FOS_USER_HOST2MIG_DATA:
+
+         if (copy_from_user(&tfer_cmd, arg_ptr, sizeof(tfer_cmd))) {
+            printk(KERN_DEBUG "FOS_USER_READ_DATA: copy failed\n");
+
+            return -EFAULT;
+         }
+         ret = FOS_tfer_host2mig(fos, &tfer_cmd);
          return ret;
 
       case FOS_USER_READ_FREQUENCY:
@@ -321,6 +336,37 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
          }
          return 0;
 
+      case FOS_INTERRUPT_ENABLE:
+         // enables and clears selected interrupts
+         if (arg & ~INTERRUPT_MASK) {
+            printk(KERN_DEBUG "FOS_INTERRUPT_ENABLE: incorrect mask\n");
+            return -EFAULT;
+         }
+         val = arg |(INTERRUPT_MASK<<16);
+         fos_write_reg(fos, R_INTERRUPT, val);
+
+         return 0;
+
+      case FOS_INTERRUPT_STATUS:
+
+         int_status.int_active_mask       = fos->int_active_mask;
+         int_status.irq_count             = fos->irq_count;
+         int_status.arbiter_int_count     = fos->arbiter_int_count;
+         int_status.mig2host_int_count    = fos->mig2host_int_count;
+         int_status.host2mig_int_count    = fos->host2mig_int_count;
+         int_status.debug_int_count       = fos->debug_int_count;
+         int_status.edfa_int_count        = fos->edfa_int_count;
+         int_status.rs485_int_count       = fos->rs485_int_count;
+         int_status.i2c_int_count         = fos->i2c_int_count;
+         int_status.gpio_int_count        = fos->gpio_int_count;
+         int_status.spi_int_count         = fos->spi_int_count;
+
+         if (copy_to_user(arg_ptr, &int_status, sizeof(int_status))) {
+            return -EFAULT;
+         }
+
+         return 0;
+
       default:
          break;
    }
@@ -337,14 +383,77 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 irqreturn_t fos_isr(int irq, void *data)
 {
    struct fos_drvdata *fos = data;
-   u32   status;
+   u32   status,int_active_mask;
 
    spin_lock(&fos->lock);
 
-   status = (fos_read_reg(fos, R_RUN_STATUS) >> 7) & 0x1ff;
+   status            = fos_read_reg(fos, R_RUN_STATUS);
+   int_active_mask   = fos->int_active_mask;
 
-   // clear interrupt and disable
-   fos_write_reg(fos, R_INTERRUPT,(status << 16));
+   // handle each interrupt source
+   if (status & STAT_ARBITER_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_ARBITER);
+      // handle condition
+      fos->arbiter_int_count++;
+   }
+
+   if (status & STAT_MIG2HOST_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_MIG2HOST);
+      // handle condition
+      fos->mig2host_int_count++;
+   }
+
+   if (status & STAT_HOST2MIG_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_HOST2MIG);
+      // handle condition
+      fos->host2mig_int_count++;
+   }
+
+   if (status & STAT_DEBUG_INT_FLAG) {
+      // clear interrupt by disabling
+      fos->int_active_mask &= ~BIT_INT_DEBUG;
+      fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
+      // increment count
+      fos->debug_int_count++;
+   }
+
+   if (status & STAT_EDFA_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_EDFA);
+      // handle condition
+      fos->edfa_int_count++;
+   }
+
+   if (status & STAT_RS485_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_RS485);
+      // handle condition
+      fos->rs485_int_count++;
+   }
+
+   if (status & STAT_I2C_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_I2C);
+      // handle condition
+      fos->i2c_int_count++;
+   }
+
+   if (status & STAT_GPIO_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_GPIO);
+      // handle condition
+      fos->gpio_int_count++;
+   }
+
+   if (status & STAT_SPI_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_SPI);
+      // handle condition
+      fos->spi_int_count++;
+   }
 
    fos->irq_count++;
 
@@ -448,6 +557,17 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
    fos->is_open = 0;
    fos->dma_done = 0;
    fos->error_status = 0;
+
+   fos->irq_count = 0;
+   fos->arbiter_int_count = 0;
+   fos->mig2host_int_count = 0;
+   fos->host2mig_int_count = 0;
+   fos->debug_int_count = 0;
+   fos->edfa_int_count = 0;
+   fos->rs485_int_count = 0;
+   fos->i2c_int_count = 0;
+   fos->gpio_int_count = 0;
+   fos->spi_int_count = 0;
 
    //
    // reset FOS device

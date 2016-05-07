@@ -22,7 +22,7 @@
 
 #define FOS_BASE                 0x43C00000
 
-#define R_FOS_FIFO_BASE          0x0800
+#define R_FOS_SPI_READ_BASE      0x0800
 #define R_FOS_SWEEP_RAM_BASE     0x1000
 #define R_FOS_DAC_LOOKUP_BASE    0x2000
 #define R_FREQUENCY_STATUS       0x3000
@@ -63,49 +63,10 @@
 #define R_HOST2MIG_ROW_COUNT     0x0070
 
 #define R_INTERRUPT              0x0074   // size of DMA transfers
+#define INTERRUPT_MASK           0x01ff   // There are 9 interrupt sources
 
 #define R_RUN_STATUS             0x0000   // read status
 
-#define FOS_FIFO_BASE            (FOS_BASE + R_FOS_FIFO_BASE)
-#define FOS_SWEEP_RAM_BASE       (FOS_BASE + R_FOS_SWEEP_RAM_BASE)
-#define FOS_DAC_LOOKUP_BASE      (FOS_BASE + R_FOS_DAC_LOOKUP_BASE)
-
-#define PULSE_RATE_ADDR          (FOS_BASE + R_PULSE_RATE)
-#define PULSE_WIDTH_ADDR         (FOS_BASE + R_PULSE_WIDTH)
-#define RUN_TEST_ADDR            (FOS_BASE + R_RUN_TEST)
-#define CONFIG_ADDR              (FOS_BASE + R_CONFIG)
-#
-#define DATA_READ_ADDR           (FOS_BASE + R_DATA_READ_ADDR)
-#define DATA_READ_STRIDE_ADDR    (FOS_BASE + R_DATA_READ_STRIDE)
-#define DATA_READ_COL_COUNT_ADDR (FOS_BASE + R_DATA_READ_COL_COUNT)
-#define DATA_READ_ROW_COUNT_ADDR (FOS_BASE + R_DATA_READ_ROW_COUNT)
-
-#define DATA_READ_START_ADDR     (FOS_BASE + R_DATA_READ_START)  // read address on 64 byte boundaries
-#define MEM_STRIDE_ADDR          (FOS_BASE + R_MEM_STRIDE)  // Write number of 256byte blocks to read
-#define SPI_PORT_SPEED_ADDR      (FOS_BASE + R_SPI_PORT_SPEED) // Set SPI port speed
-
-#define BOTDA_START_FREQ_ADDR    (FOS_BASE + R_BOTDA_START_FREQ)  // Write start frequency of BOTDA scan
-#define BOTDA_END_FREQ_ADDR      (FOS_BASE + R_BOTDA_END_FREQ)  // Write end frequency of BOTDA scan
-
-#define ADC_COUNT_ADDR           (FOS_BASE + R_ADC_COUNT)  // Write number of ADC samples to store * 16
-
-#define BOTDA_COUNT_ADDR         (FOS_BASE + R_BOTDA_COUNT)  // Write number of accumulations to perform
-
-#define ADC_OFFSET_ADDR          (FOS_BASE + R_ADC_OFFSET)  // Write adc offset value to remove
-
-#define SPI_ADDR_BASE            (FOS_BASE + R_SPI0)
-#define SPI0_ADDR                (FOS_BASE + R_SPI0)
-#define SPI1_ADDR                (FOS_BASE + R_SPI1)
-#define SPI2_ADDR                (FOS_BASE + R_SPI2)
-#define SPI3_ADDR                (FOS_BASE + R_SPI3)
-#define SPI4_ADDR                (FOS_BASE + R_SPI4)
-#define SPI5_ADDR                (FOS_BASE + R_SPI5)  // SPI 5 is a 24 bit SPI word
-#define SPI6_ADDR                (FOS_BASE + R_SPI6)
-#define SPI7_ADDR                (FOS_BASE + R_SPI7)  // This register doesn't exist
-
-#define COUNT_STATUS_ADDR        (FOS_BASE + R_COUNT_STATUS)   // SPI 5 is a 24 bit SPI word
-#define FREQUENCY_STATUS_ADDR    (FOS_BASE + R_FREQUENCY_STATUS)
-#define RUN_STATUS_ADDR          (FOS_BASE + R_RUN_STATUS)     // This register doesn't exist
 
 /*
 ** Sweep constants
@@ -214,7 +175,17 @@ struct fos_drvdata {
    dev_t devt;
    struct class *class;
    int irq;
+   uint32_t int_active_mask;
    uint32_t irq_count;
+   uint32_t arbiter_int_count;
+   uint32_t mig2host_int_count;
+   uint32_t host2mig_int_count;
+   uint32_t debug_int_count;
+   uint32_t edfa_int_count;
+   uint32_t rs485_int_count;
+   uint32_t i2c_int_count;
+   uint32_t gpio_int_count;
+   uint32_t spi_int_count;
    int dma_block_count;
    struct clk *clk;
    volatile bool dma_done;
@@ -358,13 +329,22 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr);
 //static inline u32 FOS_Status(struct fos_drvdata *fos);
 
 //
-// FOS_Read_Data()
+// FOS_tfer_mig2host()
 //
 // Read a 2-dimensional block of data from test
 // data is available immediately
 // -1 is returned if error, number of bytes is returned if ok.
 //
-int FOS_Read_Data(struct fos_drvdata *fos, struct FOS_read_data_struct *cmd);
+int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd);
+
+//
+// FOS_tfer_host2mig()
+//
+// Read a 2-dimensional block of data from test
+// data is available immediately
+// -1 is returned if error, number of bytes is returned if ok.
+//
+int FOS_tfer_host2mig(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd);
 
 //
 // FOS_Read_Frequency()
