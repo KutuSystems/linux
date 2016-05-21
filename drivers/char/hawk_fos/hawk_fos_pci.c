@@ -455,6 +455,14 @@ irqreturn_t fos_isr(int irq, void *data)
       fos->spi_int_count++;
    }
 
+   if (status & STAT_QSPI_INT_FLAG) {
+      // clear interrupt
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_QSPI);
+      // handle condition
+      fos->qspi_int_count++;
+   }
+
+
    fos->irq_count++;
 
    spin_unlock(&fos->lock);
@@ -568,6 +576,7 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
    fos->i2c_int_count = 0;
    fos->gpio_int_count = 0;
    fos->spi_int_count = 0;
+   fos->qspi_int_count = 0;
 
    //
    // reset FOS device

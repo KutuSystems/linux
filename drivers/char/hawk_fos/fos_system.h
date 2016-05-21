@@ -63,7 +63,7 @@
 #define R_HOST2MIG_ROW_COUNT     0x0070
 
 #define R_INTERRUPT              0x0074   // size of DMA transfers
-#define INTERRUPT_MASK           0x01ff   // There are 9 interrupt sources
+#define INTERRUPT_MASK           0x03ff   // There are 10 interrupt sources
 
 #define R_RUN_STATUS             0x0000   // read status
 
@@ -186,6 +186,7 @@ struct fos_drvdata {
    uint32_t i2c_int_count;
    uint32_t gpio_int_count;
    uint32_t spi_int_count;
+   uint32_t qspi_int_count;
    int dma_block_count;
    struct clk *clk;
    volatile bool dma_done;

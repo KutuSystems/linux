@@ -22,15 +22,16 @@
 #define DDR_CAL_FLAG             (1<<4)
 #define UI_BUSY_FLAG             (1<<5)
 
-#define STAT_ARBITER_INT_FLAG    (1<<7)
-#define STAT_MIG2HOST_INT_FLAG   (1<<8)
-#define STAT_HOST2MIG_INT_FLAG   (1<<9)
-#define STAT_DEBUG_INT_FLAG      (1<<10)
-#define STAT_EDFA_INT_FLAG       (1<<11)
-#define STAT_RS485_INT_FLAG      (1<<12)
-#define STAT_I2C_INT_FLAG        (1<<13)
-#define STAT_GPIO_INT_FLAG       (1<<14)
-#define STAT_SPI_INT_FLAG        (1<<15)
+#define STAT_ARBITER_INT_FLAG    (1<<6)
+#define STAT_MIG2HOST_INT_FLAG   (1<<7)
+#define STAT_HOST2MIG_INT_FLAG   (1<<8)
+#define STAT_DEBUG_INT_FLAG      (1<<9)
+#define STAT_EDFA_INT_FLAG       (1<<10)
+#define STAT_RS485_INT_FLAG      (1<<11)
+#define STAT_I2C_INT_FLAG        (1<<12)
+#define STAT_GPIO_INT_FLAG       (1<<13)
+#define STAT_SPI_INT_FLAG        (1<<14)
+#define STAT_QSPI_INT_FLAG       (1<<15)
 
 #define STAT_VERSION_MINOR_MASK  0x00ff0000
 #define STAT_VERSION_MINOR_SHIFT 16
@@ -47,6 +48,7 @@
 #define BIT_INT_I2C             (1<<6)
 #define BIT_INT_GPIO            (1<<7)
 #define BIT_INT_SPI             (1<<8)
+#define BIT_INT_QSPI            (1<<9)
 
 #define BIT_CLR_ARBITER         (1<<16)
 #define BIT_CLR_MIG2HOST        (1<<17)
@@ -57,6 +59,7 @@
 #define BIT_CLR_I2C             (1<<22)
 #define BIT_CLR_GPIO            (1<<23)
 #define BIT_CLR_SPI             (1<<24)
+#define BIT_CLR_QSPI            (1<<25)
 
 
 #define SPI_MAX_WAIT_COUNT 1000000
