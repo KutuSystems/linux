@@ -27,26 +27,25 @@
 #define R_FOS_DAC_LOOKUP_BASE    0x2000
 #define R_FREQUENCY_STATUS       0x3000
 
+// Control registers
 #define R_PULSE_RATE             0x0000
 #define R_PULSE_WIDTH            0x0004
-#define R_RUN_TEST               0x0008
-#define R_CONFIG                 0x000C
+#define R_CONFIG                 0x0008
+#define R_INTERRUPT              0x000C
+#define R_RUN_TEST               0x0010
+#define R_MEM_STRIDE             0x0014   // size of each row in bytes
+#define R_BOTDA_START_FREQ       0x0018   // Write start frequency of BOTDA scan
+#define R_BOTDA_END_FREQ         0x001C   // Write end frequency of BOTDA scan
+#define R_ADC_COUNT              0x0020   // Write number of ADC samples to store * 16
+#define R_BOTDA_COUNT            0x0024   // Write number of accumulations to perform
+#define R_ADC_OFFSET             0x0028   // Write adc offset value to remove
+#define R_SPI_PORT_SPEED         0x002C   // Set SPI port speed
+#define R_RSVD1                  0x0030
+#define R_RSVD2                  0x0034
+#define R_RSVD3                  0x0038
+#define R_RSVD4                  0x003C
 
-#define R_MIG2HOST_READ_ADDR     0x0010   // read address on 64 byte boundaries
-#define R_MIG2HOST_STRIDE        0x0014
-#define R_MIG2HOST_COL_COUNT     0x0018
-#define R_MIG2HOST_WRITE_ADDR    0x001C
-#define R_MIG2HOST_ROW_COUNT     0x0020
-
-#define R_MEM_STRIDE             0x0024   // Write number of 256byte blocks to read
-#define R_SPI_PORT_SPEED         0x0028   // Set SPI port speed
-
-#define R_BOTDA_START_FREQ       0x002C   // Write start frequency of BOTDA scan
-#define R_BOTDA_END_FREQ         0x0030   // Write end frequency of BOTDA scan
-#define R_ADC_COUNT              0x0034   // Write number of ADC samples to store * 16
-#define R_BOTDA_COUNT            0x0038   // Write number of accumulations to perform
-#define R_ADC_OFFSET             0x003C   // Write adc offset value to remove
-
+// SPI interface registers
 #define R_SPI0                   0x0040
 #define R_SPI1                   0x0044
 #define R_SPI2                   0x0048
@@ -56,13 +55,24 @@
 #define R_SPI6                   0x0058
 #define R_SPI7                   0x005C   // This register doesn't exist
 
-#define R_HOST2MIG_WRITE_ADDR    0x0060   // WRITE address on 64 byte boundaries
-#define R_HOST2MIG_STRIDE        0x0064
-#define R_HOST2MIG_COL_COUNT     0x0068
-#define R_HOST2MIG_READ_ADDR     0x006C
-#define R_HOST2MIG_ROW_COUNT     0x0070
+// MIG2HOST interface registers
+#define R_MIG2HOST_READ_ADDR     0x0060   // read address on 64 byte boundaries
+#define R_MIG2HOST_STRIDE        0x0064
+#define R_MIG2HOST_COL_COUNT     0x0068
+#define R_MIG2HOST_ROW_COUNT     0x006C
+#define R_MIG2HOST_WRITE_ADDR    0x0070
+#define R_MIG2HOST_WRITE_ADDR_HI 0x0074
 
-#define R_INTERRUPT              0x0074   // size of DMA transfers
+// HOST2MIG interface registers
+#define R_HOST2MIG_WRITE_ADDR    0x0080   // WRITE address on 64 byte boundaries
+#define R_HOST2MIG_STRIDE        0x0084
+#define R_HOST2MIG_COL_COUNT     0x0088
+#define R_HOST2MIG_ROW_COUNT     0x008C
+#define R_HOST2MIG_READ_ADDR     0x0090
+#define R_HOST2MIG_READ_ADDR_HI  0x0094
+
+
+
 #define INTERRUPT_MASK           0x03ff   // There are 10 interrupt sources
 
 #define R_RUN_STATUS             0x0000   // read status
@@ -78,19 +88,6 @@
 #define TEST_SWEEP_ENABLE        0x02
 #define OUTPUT_SWEEP_CLK_ENABLE  0x04
 #define RUN_SWEEP_ENABLE         0x08
-
-/*
- * DMA register constants
- */
-#define MM2S_DMACR	0x00
-#define MM2S_DMASR	0x04
-#define MM2S_SA	   0x18
-#define MM2S_LENGTH	0x28
-
-#define S2MM_DMACR	0x30
-#define S2MM_DMASR	0x34
-#define S2MM_DA	   0x48
-#define S2MM_LENGTH	0x58
 
 /*
  *  struct FOS_axi_lite_base.
@@ -112,20 +109,20 @@ struct FOS_axi_lite_base {
 struct FOS_registers {
    u32                           pulse_rate_gen;      // 0x0
    u32                           pulse_width_gen;     // 0x4
-   u32                           sweep_test;          // 0x8
-   u32                           run_test;            // 0xC
-   u32                           data_read_addr;      // 0x10
-   u32                           data_read_stride;    // 0x14
-   u32                           data_read_col_count; // 0x18
-   u32                           data_read_row_count; // 0x1C
-   u32                           data_read_start;     // 0x20
-   u32                           mem_stride;          // 0x24
-   u32                           spi_port_speed;      // 0x28
-   u32                           botda_start_freq;    // 0x2C
-   u32                           botda_end_freq;      // 0x30
-   u32                           adc_count;           // 0x34
-   u32                           botda_count;         // 0x38
-   u32                           adc_offset;          // 0x3C
+   u32                           config;              // 0x8
+   u32                           interrupt;           // 0xC
+   u32                           run_test;            // 0x10
+   u32                           mem_stride;          // 0x14
+   u32                           botda_start_freq;    // 0x18
+   u32                           botda_end_freq;      // 0x1C
+   u32                           adc_count;           // 0x20
+   u32                           botda_count;         // 0x24
+   u32                           adc_offset;          // 0x28
+   u32                           spi_port_speed;      // 0x2C
+   u32                           rsvd1;               // 0x30
+   u32                           rsvd2;               // 0x34
+   u32                           rsvd3;               // 0x38
+   u32                           rsvd4;               // 0x3C
    u32                           spi0;                // 0x40
    u32                           spi1;                // 0x44
    u32                           spi2;                // 0x48
@@ -134,18 +131,21 @@ struct FOS_registers {
    u32                           spi5;                // 0x54
    u32                           spi6;                // 0x58
    u32                           spi7;                // 0x5C
-   u32                           data_write_addr;      // 0x60
-   u32                           data_write_stride;    // 0x64
-   u32                           data_write_col_count; // 0x68
-   u32                           data_write_row_count; // 0x6C
-   u32                           data_write_start;     // 0x70
-   u32                           unused1;             // 0x74
-   u32                           unused2;             // 0x78
-   u32                           unused3;             // 0x7C
-   u32                           count_status;        // 0x80
-   u32                           frequency_status;    // 0x84
-   u32                           run_status;          // 0x88
-} ;
+   u32                           mig2host_read_addr;  // 0x60
+   u32                           mig2host_stride;     // 0x64
+   u32                           mig2host_col_count;  // 0x68
+   u32                           mig2host_row_count;  // 0x6C
+   u64                           mig2host_write_addr; // 0x70
+   u32                           unused1;             // 0x78
+   u32                           unused2;             // 0x7C
+   u32                           host2mig_read_addr;  // 0x80
+   u32                           host2mig_stride;     // 0x84
+   u32                           host2mig_col_count;  // 0x88
+   u32                           host2mig_row_count;  // 0x8C
+   u64                           host2mig_write_addr; // 0x90
+   u32                           unused3;             // 0x98
+   u32                           unused4;             // 0x9C
+};
 
 #define MAX_DEVICES     4
 

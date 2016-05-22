@@ -96,8 +96,13 @@
 
 #define RUN_BOTDA                (BOTDA_MODE|DAC_UPDATE_ENABLE|START_TEST)
 #define RUN_BOTDA_TEST           (BOTDA_MODE|TEST_DATA_ENABLE|DAC_UPDATE_ENABLE|START_TEST)
-#define RUN_COTDR                COTDR_MODE|START_TEST
+#define RUN_COTDR                (COTDR_MODE|START_TEST)
 #define RUN_COTDR_TEST           (COTDR_MODE|TEST_DATA_ENABLE|START_TEST)
+#define RUN_COTDR_TEST_200       (COTDR_MODE|TEST_DATA_ENABLE|START_TEST|CLK_200_MODE)
+#define RUN_ALT_COTDR_TEST       (COTDR_MODE_ALT|TEST_DATA_ENABLE|START_TEST)
+#define RUN_ALT_COTDR_TEST_200   (COTDR_MODE_ALT|TEST_DATA_ENABLE|START_TEST|CLK_200_MODE)
+#define RUN_DUAL_COTDR_TEST      (COTDR_MODE_DUAL|TEST_DATA_ENABLE|START_TEST)
+#define RUN_DUAL_COTDR_TEST_200  (COTDR_MODE_DUAL|TEST_DATA_ENABLE|START_TEST|CLK_200_MODE)
 #define RUN_ROTDR                ROTDR_MODE|START_TEST
 #define RUN_ROTDR_TEST           (ROTDR_MODE|TEST_DATA_ENABLE|START_TEST)
 #define RUN_NO_TEST              0
@@ -135,8 +140,6 @@ enum fos_user_cmds
    FOS_INTERRUPT_COUNT,
    FOS_DMA_BLOCK_COUNT,
    FOS_CONTINUOUS_SCAN,
-   FOS_DMA_STATUS,
-   FOS_DMA_TEST,
    FOS_REG_DEBUG,
    FOS_INTERRUPT_ENABLE,
    FOS_INTERRUPT_STATUS
@@ -223,6 +226,7 @@ struct FOS_int_status_struct {
    __u32 i2c_int_count;
    __u32 gpio_int_count;
    __u32 spi_int_count;
+   __u32 qspi_int_count;
 } ;
 
 
@@ -253,10 +257,8 @@ struct FOS_debug_struct {
 #define FOS_INTERRUPT_COUNT         _IOWR(FOS_IOCTL_BASE, 0x90, struct FOS_cmd_struct)
 #define FOS_DMA_BLOCK_COUNT         _IOWR(FOS_IOCTL_BASE, 0x91, struct FOS_cmd_struct)
 #define FOS_CONTINUOUS_SCAN         _IOWR(FOS_IOCTL_BASE, 0x92, struct FOS_cmd_struct)
-#define FOS_DMA_STATUS              _IOWR(FOS_IOCTL_BASE, 0x93, struct FOS_cmd_struct)
-#define FOS_DMA_TEST                _IOWR(FOS_IOCTL_BASE, 0x94, struct FOS_cmd_struct)
-#define FOS_REG_DEBUG               _IOWR(FOS_IOCTL_BASE, 0x95, struct FOS_cmd_struct)
-#define FOS_INTERRUPT_ENABLE        _IOWR(FOS_IOCTL_BASE, 0x96, struct FOS_cmd_struct)
-#define FOS_INTERRUPT_STATUS        _IOWR(FOS_IOCTL_BASE, 0x97, struct FOS_cmd_struct)
+#define FOS_REG_DEBUG               _IOWR(FOS_IOCTL_BASE, 0x93, struct FOS_cmd_struct)
+#define FOS_INTERRUPT_ENABLE        _IOWR(FOS_IOCTL_BASE, 0x94, struct FOS_cmd_struct)
+#define FOS_INTERRUPT_STATUS        _IOWR(FOS_IOCTL_BASE, 0x95, struct FOS_cmd_struct)
 
 #endif /* _FOS_H */

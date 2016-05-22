@@ -157,7 +157,6 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
    void  *arg_ptr = (void *)arg;
    long  ret = 0;
    u32      val;
-   unsigned int s2mm_status;
    struct FOS_transfer_data_struct tfer_cmd;
    struct FOS_debug_struct debug_cmd;
    struct FOS_int_status_struct int_status;
@@ -277,44 +276,6 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
          ret = FOS_Continuous_Scan(fos, arg_ptr);
          return ret;
 
-      case FOS_DMA_STATUS:
-         s2mm_status = fosdma_read_reg(fos,S2MM_DMASR);
-         if (copy_to_user(arg_ptr, &s2mm_status, sizeof(u32))) {
-            return -EFAULT;
-         }
-         return 0;
-
-      case FOS_DMA_TEST:
-         if (arg >= 0x800000)
-            return -EFAULT;
-
-         // set dma into loopback mode
-         fos_write_reg(fos, R_CONFIG, (fos->config_state|DMA_DEBUG));
-
-         // start read from memory
-         fosdma_write_reg(fos, MM2S_DMACR, 1);
-         fosdma_write_reg(fos, MM2S_SA, fos->dma_handle);
-         fosdma_write_reg(fos, MM2S_LENGTH, arg);
-
-         // start write to memory
-         fosdma_write_reg(fos, S2MM_DMACR, 1);
-         fosdma_write_reg(fos, S2MM_DA, (fos->dma_handle + (DMA_LENGTH/2)));
-         fosdma_write_reg(fos, S2MM_LENGTH, arg);
-
-         printk(KERN_DEBUG "<%s> : started dma \n",MODULE_NAME);
-
-         s2mm_status = fosdma_read_reg(fos,S2MM_DMASR);
-         while(!(s2mm_status & 1<<12) && !(s2mm_status & 1<<1) && !(s2mm_status & 1<<0)){
-            s2mm_status = fosdma_read_reg(fos,S2MM_DMASR);
-         }
-
-         printk(KERN_DEBUG "<%s> :  dma status = 0x%x\n",MODULE_NAME,s2mm_status);
-
-         // set configuration back to original state
-         fos_write_reg(fos, R_CONFIG, fos->config_state);
-
-         return 0;
-
       case FOS_REG_DEBUG:
 
          if (copy_from_user(&debug_cmd, arg_ptr, sizeof(debug_cmd))) {
@@ -360,6 +321,7 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
          int_status.i2c_int_count         = fos->i2c_int_count;
          int_status.gpio_int_count        = fos->gpio_int_count;
          int_status.spi_int_count         = fos->spi_int_count;
+         int_status.qspi_int_count        = fos->qspi_int_count;
 
          if (copy_to_user(arg_ptr, &int_status, sizeof(int_status))) {
             return -EFAULT;

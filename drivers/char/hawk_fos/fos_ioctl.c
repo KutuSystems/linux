@@ -117,7 +117,7 @@ int FOS_Run_Test(struct fos_drvdata *fos, void *user_ptr)
       return -3;
 
    adc_count_value = cmd.adc_count;
-   if ((cmd.config & MODE_BITS) == BOTDA_MODE) {
+   if (((cmd.config & MODE_BITS) == BOTDA_MODE)||((cmd.config & MODE_BITS) == BOTDA_MODE_ALT)) {
       // write out BOTDA format data
       adc_count_value = cmd.adc_count + 15;
       adc_count_value /= 16;
@@ -125,7 +125,7 @@ int FOS_Run_Test(struct fos_drvdata *fos, void *user_ptr)
       // write out ROTDR format data
       adc_count_value = cmd.adc_count + 15;
       adc_count_value /= 16;
-   }  else if ((cmd.config & MODE_BITS) == COTDR_MODE) {
+   }  else if (((cmd.config & MODE_BITS) == COTDR_MODE)||((cmd.config & MODE_BITS) == COTDR_MODE_ALT)||((cmd.config & MODE_BITS) == COTDR_MODE_DUAL)) {
       // write out COTDR format data
       adc_count_value = cmd.adc_count + 31;
       adc_count_value /= 32;
@@ -139,8 +139,8 @@ int FOS_Run_Test(struct fos_drvdata *fos, void *user_ptr)
    fos_write_reg(fos, R_BOTDA_COUNT, cmd.botda_count);
    fos_write_reg(fos, R_MEM_STRIDE, cmd.row_stride);
 
-   cmd.config &= (MODE_BITS|TEST_DATA_ENABLE|DAC_UPDATE_ENABLE);
-   fos->config_state &= ~(MODE_BITS|TEST_DATA_ENABLE|DAC_UPDATE_ENABLE);
+   cmd.config &= (MODE_BITS|TEST_DATA_ENABLE|DAC_UPDATE_ENABLE|CLK_200_MODE);
+   fos->config_state &= ~(MODE_BITS|TEST_DATA_ENABLE|DAC_UPDATE_ENABLE|CLK_200_MODE);
    fos->config_state |= cmd.config;
    fos_write_reg(fos, R_CONFIG, fos->config_state);
 
