@@ -326,7 +326,7 @@ int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
    fos_write_reg(fos, R_MIG2HOST_READ_ADDR, cmd->mig_base_address);
    fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
    fos_write_reg(fos, R_MIG2HOST_COL_COUNT, num_columns);
-   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
+   fos_write_reg64(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
    fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
 
    return 0;
@@ -376,7 +376,7 @@ int FOS_tfer_host2mig(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
    fos_write_reg(fos, R_HOST2MIG_WRITE_ADDR, cmd->mig_base_address);
    fos_write_reg(fos, R_HOST2MIG_STRIDE, row_stride);
    fos_write_reg(fos, R_HOST2MIG_COL_COUNT, num_columns);
-   fos_write_reg(fos, R_HOST2MIG_READ_ADDR, fos->dma_handle + cmd->host_offset_addr);
+   fos_write_reg64(fos, R_HOST2MIG_READ_ADDR, fos->dma_handle + cmd->host_offset_addr);
    fos_write_reg(fos, R_HOST2MIG_ROW_COUNT, num_rows);
 
    return 0;

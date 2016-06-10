@@ -209,6 +209,11 @@ static inline void fos_write_reg(struct fos_drvdata *fos, unsigned int reg, uint
 	writel(val, fos->base + reg);
 }
 
+static inline void fos_write_reg64(struct fos_drvdata *fos, unsigned int reg, uint64_t val)
+{
+	writeq(val, fos->base + reg);
+}
+
 static inline uint32_t fos_read_reg(struct fos_drvdata *fos, unsigned int reg)
 {
 	return(readl(fos->base + reg));

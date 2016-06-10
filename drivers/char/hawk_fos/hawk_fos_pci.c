@@ -490,6 +490,12 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_err(dev, "BAR0 configuration is correct.\n");
 	}
 
+	if ((ret & IORESOURCE_MEM) != IORESOURCE_MEM_64) {
+		dev_err(dev, "BAR0 is a 32-bit address, set device as 32-bit\n");
+	} else {
+		dev_err(dev, "BAR0 is a 64-bit address, set device as 64-bit\n");
+	}
+
    // request PCI regions
    ret = pci_request_regions(pdev, "hawk_fos");
 	if (ret) {
@@ -578,8 +584,8 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
    fos->dma_addr = dma_alloc_coherent(&pdev->dev, DMA_LENGTH, &fos->dma_handle, (GFP_KERNEL|GFP_DMA32));
 
-   //dev_info(&pdev->dev, "dma_addr = 0x%x, dma_handle = 0x%x\n",(u32)(fos->dma_addr),(u32)fos->dma_handle);
-   //dev_info(&pdev->dev, "fos base = 0x%x\n",(u32)fos->base);
+   dev_info(&pdev->dev, "dma_addr = 0x%llx, dma_handle = 0x%llx\n",(u64)(fos->dma_addr),(u64)fos->dma_handle);
+   dev_info(&pdev->dev, "fos base = 0x%llx\n",(u64)fos->base);
 
    if (!fos->dma_addr) {
       printk(KERN_ERR "<%s> Error: allocating dma memory failed\n", MODULE_NAME);
