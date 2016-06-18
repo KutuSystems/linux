@@ -378,7 +378,7 @@ int FOS_tfer_host2mig(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
    host_addr = fos->dma_handle;
    host_addr += cmd->host_offset_addr;
 #ifdef DEBUG
-   printk(KERN_DEBUG "Address for host2mig transfer is 0x%08x, size of request is %d blocks\n",cmd->mig_base_address,transfer_size);
+   printk(KERN_DEBUG "MIG Address for host2mig transfer is 0x%08x, size of request is %d blocks\n",cmd->mig_base_address,transfer_size);
    printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d\n",row_stride,num_columns,num_rows);
    printk(KERN_DEBUG "Host address for host2mig transfer is 0x%llx\n",host_addr);
 #endif
