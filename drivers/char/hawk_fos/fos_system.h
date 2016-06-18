@@ -188,6 +188,7 @@ struct fos_drvdata {
    uint32_t spi_int_count;
    uint32_t qspi_int_count;
    int dma_block_count;
+   int dev64_support;
    struct clk *clk;
    volatile bool dma_done;
    volatile int error_status;

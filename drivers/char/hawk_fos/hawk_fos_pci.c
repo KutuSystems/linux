@@ -458,6 +458,7 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
    dev_t devt;
    int ret;
    struct device *dev;
+   struct page *fos_cma_area;
 
 	/* enable the PCI device */
    ret =	pci_enable_device(pdev);
@@ -490,10 +491,16 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_err(dev, "BAR0 configuration is correct.\n");
 	}
 
-	if ((ret & IORESOURCE_MEM) != IORESOURCE_MEM_64) {
+	if ((ret & IORESOURCE_MEM_64) != IORESOURCE_MEM_64) {
 		dev_err(dev, "BAR0 is a 32-bit address, set device as 32-bit\n");
+      if (dma_set_mask(dev, DMA_BIT_MASK(32)))
+         dev_info(dev, "Couldn't set mask to 32 bit dma mask\n");
+      fos-> dev64_support = 0;
 	} else {
-		dev_err(dev, "BAR0 is a 64-bit address, set device as 64-bit\n");
+		dev_err(dev, "BAR0 is a 64-bit address, set device as 64-bit with 1TByte range \n");
+      if (dma_set_mask(dev, DMA_BIT_MASK(64)))
+         dev_info(dev, "Couldn't set mask to 64 bit dma mask\n");
+      fos-> dev64_support = 1;
 	}
 
    // request PCI regions
@@ -582,7 +589,24 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
    // allocate mmap area
    //
 
-   fos->dma_addr = dma_alloc_coherent(&pdev->dev, DMA_LENGTH, &fos->dma_handle, (GFP_KERNEL|GFP_DMA32));
+   if (fos-> dev64_support) {
+      // allocate 256 Mbytes for 64-bit PCI
+      dev_info(dev, "Attempting to allocate a 256Mbyte CMA buffer\n");
+
+      fos_cma_area = dma_alloc_from_contiguous(&pdev->dev, ((128<<20)>>PAGE_SHIFT), PAGE_SIZE);
+      if (fos_cma_area) {
+         dev_info(&pdev->dev, "CMA buffer allocation Succeeded!\n");
+         fos->dma_addr = page_to_virt(fos_cma_area);
+         fos->dma_handle = page_to_phys(fos_cma_area);
+      } else {
+         dev_info(&pdev->dev, "CMA buffer allocation failed!!!!!!\n");
+         fos->dma_addr = 0;
+         fos->dma_handle = 0;
+      }
+   } else {
+      // allocate 4 Mbytes
+      fos->dma_addr = dma_alloc_coherent(&pdev->dev, DMA_LENGTH, &fos->dma_handle, (GFP_KERNEL|GFP_DMA32));
+   }
 
    dev_info(&pdev->dev, "dma_addr = 0x%llx, dma_handle = 0x%llx\n",(u64)(fos->dma_addr),(u64)fos->dma_handle);
    dev_info(&pdev->dev, "fos base = 0x%llx\n",(u64)fos->base);
