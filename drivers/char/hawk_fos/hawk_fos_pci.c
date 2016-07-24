@@ -15,6 +15,7 @@
 #include <linux/clk.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
+#include <linux/delay.h>
 
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
@@ -34,6 +35,7 @@
 static const char fosname[] = "hawk_fos";
 
 static struct pci_device_id ids[] = {
+	{ PCI_DEVICE(0x10ee, 0x7024), },
 	{ PCI_DEVICE(0x10ee, 0x7042), },
 	{ 0, }
 };
@@ -172,6 +174,7 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             fos_write_reg(fos, R_RUN_TEST, 0);
             fos->config_state = 0;
          }
+         udelay(10);
          return 0;
 
       case FOS_USER_SET_CLK:
