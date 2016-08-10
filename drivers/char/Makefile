@@ -59,8 +59,5 @@ js-rtc-y = rtc.o
 
 obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
 obj-$(CONFIG_XILLYBUS)		+= xillybus/
-<<<<<<< HEAD
 obj-$(CONFIG_HAWK_FOS)		+= hawk_fos/
-=======
 obj-$(CONFIG_POWERNV_OP_PANEL)	+= powernv-op-panel.o
->>>>>>> a0cba2179ea4c1820fce2ee046b6ed90ecc56196
