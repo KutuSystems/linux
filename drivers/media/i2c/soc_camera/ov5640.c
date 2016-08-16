@@ -46,6 +46,153 @@
 #define OV5640_CHIP_ID_HIGH_BYTE        0x300A
 #define OV5640_CHIP_ID_LOW_BYTE         0x300B
 
+// These are temporary from ov7670 driver
+#define   CMATRIX_LEN 6
+
+#define REG_HSTART	0x17	/* Horiz start high bits */
+#define REG_HSTOP	0x18	/* Horiz stop high bits */
+#define REG_VSTART	0x19	/* Vert start high bits */
+#define REG_VSTOP	0x1a	/* Vert stop high bits */
+#define REG_CLKRC	0x11	/* Clocl control */
+#define REG_HREF	0x32	/* HREF pieces */
+#define REG_VREF	0x03	/* Pieces of GAIN, VSTART, VSTOP */
+
+
+enum ov5640_model {
+	MODEL_OV5640 = 0,
+	MODEL_OV5642,
+	MODEL_OV5647,
+};
+
+struct ov5640_win_size {
+	int	width;
+	int	height;
+	unsigned char com7_bit;
+	int	hstart;		/* Start/stop values for the camera.  Note */
+	int	hstop;		/* that they do not always make complete */
+	int	vstart;		/* sense to humans, but evidently the sensor */
+	int	vstop;		/* will do the right thing... */
+	struct regval_list *regs; /* Regs to tweak */
+};
+
+struct ov5640_devtype {
+	/* formats supported for each model */
+	struct ov5640_win_size *win_sizes;
+	unsigned int n_win_sizes;
+	/* callbacks for frame rate control */
+	int (*set_framerate)(struct v4l2_subdev *, struct v4l2_fract *);
+	void (*get_framerate)(struct v4l2_subdev *, struct v4l2_fract *);
+};
+
+/*
+ * Information we maintain about a known sensor.
+ */
+struct ov5640_format_struct;  /* coming later */
+struct ov5640_info {
+	struct v4l2_subdev sd;
+	struct v4l2_ctrl_handler hdl;
+	struct {
+		/* gain cluster */
+		struct v4l2_ctrl *auto_gain;
+		struct v4l2_ctrl *gain;
+	};
+	struct {
+		/* exposure cluster */
+		struct v4l2_ctrl *auto_exposure;
+		struct v4l2_ctrl *exposure;
+	};
+	struct {
+		/* saturation/hue cluster */
+		struct v4l2_ctrl *saturation;
+		struct v4l2_ctrl *hue;
+	};
+	struct ov5640_format_struct *fmt;  /* Current format */
+	int min_width;			/* Filter out smaller sizes */
+	int min_height;			/* Filter out smaller sizes */
+	int clock_speed;		/* External clock speed (MHz) */
+	u8 clkrc;			/* Clock divider value */
+	bool use_smbus;			/* Use smbus I/O instead of I2C */
+	bool pll_bypass;
+	bool pclk_hb_disable;
+	const struct ov5640_devtype *devtype; /* Device specifics */
+};
+
+static inline struct ov5640_info *to_state(struct v4l2_subdev *sd)
+{
+	return container_of(sd, struct ov5640_info, sd);
+}
+
+static inline struct v4l2_subdev *to_sd(struct v4l2_ctrl *ctrl)
+{
+	return &container_of(ctrl->handler, struct ov5640_info, hdl)->sd;
+}
+
+struct regval_list {
+	unsigned char reg_num;
+	unsigned char value;
+};
+
+
+static struct regval_list ov5640_fmt_yuv422[] = {
+	{ 0x12, 0x0  },  /* Selects YUV mode */
+	{ 0x8c, 0x0  },	/* No RGB444 please */
+	{ 0x04, 0x0  },	/* CCIR601 */
+	{ 0x40, 0xc0 },
+	{ 0x14, 0x48 }, /* 32x gain ceiling; 0x8 is reserved bit */
+	{ 0x4f, 0x80 }, 	/* "matrix coefficient 1" */
+	{ 0x50, 0x80 }, 	/* "matrix coefficient 2" */
+	{ 0x51, 0x0  },		/* vb */
+	{ 0x52, 0x22 }, 	/* "matrix coefficient 4" */
+	{ 0x53, 0x5e }, 	/* "matrix coefficient 5" */
+	{ 0x54, 0x80 }, 	/* "matrix coefficient 6" */
+	{ 0x3d, 0xc0 },
+	{ 0xff, 0xff },
+};
+
+static struct regval_list ov5640_fmt_rgb565[] = {
+	{ 0x12, 0x04 },	/* Selects RGB mode */
+	{ 0x8c, 0x0  },	/* No RGB444 please */
+	{ 0x04, 0x0  },	/* CCIR601 */
+	{ 0x40, 0x10 },
+	{ 0x14, 0x38 }, 	/* 16x gain ceiling; 0x8 is reserved bit */
+	{ 0x4f, 0xb3 }, 	/* "matrix coefficient 1" */
+	{ 0x50, 0xb3 }, 	/* "matrix coefficient 2" */
+	{ 0x51, 0    },		/* vb */
+	{ 0x52, 0x3d }, 	/* "matrix coefficient 4" */
+	{ 0x53, 0xa7 }, 	/* "matrix coefficient 5" */
+	{ 0x54, 0xe4 }, 	/* "matrix coefficient 6" */
+	{ 0x3d, 0xc0 },
+	{ 0xff, 0xff },
+};
+
+static struct regval_list ov5640_fmt_rgb444[] = {
+	{ 0x12, 0x04 },	/* Selects RGB mode */
+	{ 0x8c, 0x02 },	/* Enable xxxxrrrr ggggbbbb */
+	{ 0x04, 0x0  },	/* CCIR601 */
+	{ 0x40, 0x90 }, /* Data range needed? */
+	{ 0x14, 0x38 }, 	/* 16x gain ceiling; 0x8 is reserved bit */
+	{ 0x4f, 0xb3 }, 	/* "matrix coefficient 1" */
+	{ 0x50, 0xb3 }, 	/* "matrix coefficient 2" */
+	{ 0x51, 0    },		/* vb */
+	{ 0x52, 0x3d }, 	/* "matrix coefficient 4" */
+	{ 0x53, 0xa7 }, 	/* "matrix coefficient 5" */
+	{ 0x54, 0xe4 }, 	/* "matrix coefficient 6" */
+	{ 0x3d, 0xc2 },  /* Magic rsvd bit */
+	{ 0xff, 0xff },
+};
+
+static struct regval_list ov5640_fmt_raw[] = {
+	{ 0x12, 0x01 },
+	{ 0x3d, 0x08 }, /* No gamma, magic rsvd bit */
+	{ 0x41, 0x3d }, /* Edge enhancement, denoise */
+	{ 0x76, 0xe1 }, /* Pix correction, magic rsvd */
+	{ 0xff, 0xff },
+};
+
+
+
+
+
 enum ov5640_mode {
 	ov5640_mode_MIN = 0,
 	ov5640_mode_VGA_640_480 = 0,
@@ -623,7 +770,8 @@ static struct ov5640 *to_ov5640(const struct i2c_client *client)
 }
 
 /* Find a data format by a pixel code in an array */
-static const struct ov5640_datafmt
+/*
+ * static const struct ov5640_datafmt
 			*ov5640_find_datafmt(u32 code)
 {
 	int i;
@@ -634,6 +782,7 @@ static const struct ov5640_datafmt
 
 	return NULL;
 }
+*/
 
 static inline void ov5640_power_down(int enable)
 {
@@ -658,6 +807,46 @@ static inline void ov5640_reset(void)
 	msleep(5);
 	gpio_set_value_cansleep(pwn_gpio, 1);
 }
+
+/*
+ * Store information about the video data format.  The color matrix
+ * is deeply tied into the format, so keep the relevant values here.
+ * The magic matrix numbers come from OmniVision.
+ */
+static struct ov5640_format_struct {
+	u32 mbus_code;
+	enum v4l2_colorspace colorspace;
+	struct regval_list *regs;
+	int cmatrix[CMATRIX_LEN];
+} ov5640_formats[] = {
+	{
+		.mbus_code	= MEDIA_BUS_FMT_YUYV8_2X8,
+		.colorspace	= V4L2_COLORSPACE_SRGB,
+		.regs 		= ov5640_fmt_yuv422,
+		.cmatrix	= { 128, -128, 0, -34, -94, 128 },
+	},
+	{
+		.mbus_code	= MEDIA_BUS_FMT_RGB444_2X8_PADHI_LE,
+		.colorspace	= V4L2_COLORSPACE_SRGB,
+		.regs		= ov5640_fmt_rgb444,
+		.cmatrix	= { 179, -179, 0, -61, -176, 228 },
+	},
+	{
+		.mbus_code	= MEDIA_BUS_FMT_RGB565_2X8_LE,
+		.colorspace	= V4L2_COLORSPACE_SRGB,
+		.regs		= ov5640_fmt_rgb565,
+		.cmatrix	= { 179, -179, 0, -61, -176, 228 },
+	},
+	{
+		.mbus_code	= MEDIA_BUS_FMT_SBGGR8_1X8,
+		.colorspace	= V4L2_COLORSPACE_SRGB,
+		.regs 		= ov5640_fmt_raw,
+		.cmatrix	= { 0, 0, 0, 0, 0, 0 },
+	},
+};
+#define N_OV5640_FMTS ARRAY_SIZE(ov5640_formats)
+
+
 
 static int ov5640_regulator_enable(struct device *dev)
 {
@@ -733,6 +922,21 @@ static s32 ov5640_write_reg(u16 reg, u8 val)
 
 	return 0;
 }
+
+/*
+ * Write a list of register settings; ff/ff stops the process.
+ */
+static int ov5640_write_array(struct v4l2_subdev *sd, struct regval_list *vals)
+{
+	while (vals->reg_num != 0xff || vals->value != 0xff) {
+		int ret = ov5640_write_reg(vals->reg_num, vals->value);
+		if (ret < 0)
+			return ret;
+		vals++;
+	}
+	return 0;
+}
+
 
 static s32 ov5640_read_reg(u16 reg, u8 *val)
 {
@@ -1525,6 +1729,39 @@ error:
 	return ret;
 }
 
+
+/*
+ * Store a set of start/stop values into the camera.
+ */
+static int ov5640_set_hw(struct v4l2_subdev *sd, int hstart, int hstop,
+		int vstart, int vstop)
+{
+	int ret;
+	unsigned char v;
+/*
+ * Horizontal: 11 bits, top 8 live in hstart and hstop.  Bottom 3 of
+ * hstart are in href[2:0], bottom 3 of hstop in href[5:3].  There is
+ * a mystery "edge offset" value in the top two bits of href.
+ */
+	ret =  ov5640_write_reg(REG_HSTART, (hstart >> 3) & 0xff);
+	ret += ov5640_write_reg(REG_HSTOP, (hstop >> 3) & 0xff);
+	ret += ov5640_read_reg(REG_HREF, &v);
+	v = (v & 0xc0) | ((hstop & 0x7) << 3) | (hstart & 0x7);
+	msleep(10);
+	ret += ov5640_write_reg(REG_HREF, v);
+/*
+ * Vertical: similar arrangement, but only 10 bits.
+ */
+	ret += ov5640_write_reg(REG_VSTART, (vstart >> 2) & 0xff);
+	ret += ov5640_write_reg(REG_VSTOP, (vstop >> 2) & 0xff);
+	ret += ov5640_read_reg(REG_VREF, &v);
+	v = (v & 0xf0) | ((vstop & 0x3) << 2) | (vstart & 0x3);
+	msleep(10);
+	ret += ov5640_write_reg(REG_VREF, v);
+	return ret;
+}
+
+/*
 static int ov5640_try_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_mbus_framefmt *mf)
 {
@@ -1539,14 +1776,78 @@ static int ov5640_try_fmt(struct v4l2_subdev *sd,
 
 	return 0;
 }
+*/
 
+static int ov5640_try_fmt_internal(struct v4l2_subdev *sd,
+		struct v4l2_mbus_framefmt *fmt,
+		struct ov5640_format_struct **ret_fmt,
+		struct ov5640_win_size **ret_wsize)
+{
+	int index, i;
+	struct ov5640_win_size *wsize;
+	struct ov5640_info *info = to_state(sd);
+	unsigned int n_win_sizes = info->devtype->n_win_sizes;
+	unsigned int win_sizes_limit = n_win_sizes;
+
+	for (index = 0; index < N_OV5640_FMTS; index++)
+		if (ov5640_formats[index].mbus_code == fmt->code)
+			break;
+	if (index >= N_OV5640_FMTS) {
+		/* default to first format */
+		index = 0;
+		fmt->code = ov5640_formats[0].mbus_code;
+	}
+	if (ret_fmt != NULL)
+		*ret_fmt = ov5640_formats + index;
+	/*
+	 * Fields: the OV devices claim to be progressive.
+	 */
+	fmt->field = V4L2_FIELD_NONE;
+
+	/*
+	 * Don't consider values that don't match min_height and min_width
+	 * constraints.
+	 */
+	if (info->min_width || info->min_height)
+		for (i = 0; i < n_win_sizes; i++) {
+			wsize = info->devtype->win_sizes + i;
+
+			if (wsize->width < info->min_width ||
+				wsize->height < info->min_height) {
+				win_sizes_limit = i;
+				break;
+			}
+		}
+	/*
+	 * Round requested image size down to the nearest
+	 * we support, but not below the smallest.
+	 */
+	for (wsize = info->devtype->win_sizes;
+	     wsize < info->devtype->win_sizes + win_sizes_limit; wsize++)
+		if (fmt->width >= wsize->width && fmt->height >= wsize->height)
+			break;
+	if (wsize >= info->devtype->win_sizes + win_sizes_limit)
+		wsize--;   /* Take the smallest one */
+	if (ret_wsize != NULL)
+		*ret_wsize = wsize;
+	/*
+	 * Note the size we'll actually handle.
+	 */
+	fmt->width = wsize->width;
+	fmt->height = wsize->height;
+	fmt->colorspace = ov5640_formats[index].colorspace;
+	return 0;
+}
+
+
+/*
 static int ov5640_s_fmt(struct v4l2_subdev *sd,
 			struct v4l2_mbus_framefmt *mf)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5640 *sensor = to_ov5640(client);
 
-	/* MIPI CSI could have changed the format, double-check */
+	// MIPI CSI could have changed the format, double-check
 	if (!ov5640_find_datafmt(mf->code))
 		return -EINVAL;
 
@@ -1555,7 +1856,72 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 
 	return 0;
 }
+*/
 
+static int ov5640_set_fmt(struct v4l2_subdev *sd,
+		struct v4l2_subdev_pad_config *cfg,
+		struct v4l2_subdev_format *format)
+{
+	struct ov5640_format_struct *ovfmt;
+	struct ov5640_win_size *wsize;
+	struct ov5640_info *info = to_state(sd);
+	unsigned char com7;
+	int ret;
+
+	if (format->pad)
+		return -EINVAL;
+
+	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
+		ret = ov5640_try_fmt_internal(sd, &format->format, NULL, NULL);
+		if (ret)
+			return ret;
+		cfg->try_fmt = format->format;
+		return 0;
+	}
+
+	ret = ov5640_try_fmt_internal(sd, &format->format, &ovfmt, &wsize);
+
+	if (ret)
+		return ret;
+	/*
+	 * COM7 is a pain in the ass, it doesn't like to be read then
+	 * quickly written afterward.  But we have everything we need
+	 * to set it absolutely here, as long as the format-specific
+	 * register sets list it first.
+	 */
+	com7 = ovfmt->regs[0].value;
+	com7 |= wsize->com7_bit;
+	//ov5640_write(sd, 0x12, com7);
+	ov5640_write_reg(0x12, com7);
+	/*
+	 * Now write the rest of the array.  Also store start/stops
+	 */
+	ov5640_write_array(sd, ovfmt->regs + 1);
+	ov5640_set_hw(sd, wsize->hstart, wsize->hstop, wsize->vstart, wsize->vstop);
+	ret = 0;
+	if (wsize->regs)
+		ret = ov5640_write_array(sd, wsize->regs);
+	info->fmt = ovfmt;
+
+	/*
+	 * If we're running RGB565, we must rewrite clkrc after setting
+	 * the other parameters or the image looks poor.  If we're *not*
+	 * doing RGB565, we must not rewrite clkrc or the image looks
+	 * *really* poor.
+	 *
+	 * (Update) Now that we retain clkrc state, we should be able
+	 * to write it unconditionally, and that will make the frame
+	 * rate persistent too.
+	 */
+	if (ret == 0)
+//		ret = ov5640_write(sd, REG_CLKRC, info->clkrc);
+		ret = ov5640_write_reg(REG_CLKRC, info->clkrc);
+	return 0;
+}
+
+
+
+/*
 static int ov5640_g_fmt(struct v4l2_subdev *sd,
 			struct v4l2_mbus_framefmt *mf)
 {
@@ -1570,7 +1936,20 @@ static int ov5640_g_fmt(struct v4l2_subdev *sd,
 
 	return 0;
 }
+*/
 
+static int ov5640_enum_mbus_code(struct v4l2_subdev *sd,
+		struct v4l2_subdev_pad_config *cfg,
+		struct v4l2_subdev_mbus_code_enum *code)
+{
+	if (code->pad || code->index >= N_OV5640_FMTS)
+		return -EINVAL;
+
+	code->code = ov5640_formats[code->index].mbus_code;
+	return 0;
+}
+
+/*
 static int ov5640_enum_fmt(struct v4l2_subdev *sd, unsigned int index,
 			   u32 *code)
 {
@@ -1580,6 +1959,7 @@ static int ov5640_enum_fmt(struct v4l2_subdev *sd, unsigned int index,
 	*code = ov5640_colour_fmts[index].code;
 	return 0;
 }
+*/
 
 /*!
  * ov5640_enum_framesizes - V4L2 sensor interface handler for
@@ -1705,16 +2085,13 @@ static int init_device(void)
 static struct v4l2_subdev_video_ops ov5640_subdev_video_ops = {
 	.g_parm = ov5640_g_parm,
 	.s_parm = ov5640_s_parm,
-
-//	.s_mbus_fmt	= ov5640_s_fmt,
-//	.g_mbus_fmt	= ov5640_g_fmt,
-//	.try_mbus_fmt	= ov5640_try_fmt,
-//	.enum_mbus_fmt	= ov5640_enum_fmt,
 };
 
 static const struct v4l2_subdev_pad_ops ov5640_subdev_pad_ops = {
-	.enum_frame_size       = ov5640_enum_framesizes,
-	.enum_frame_interval   = ov5640_enum_frameintervals,
+	.enum_frame_interval    = ov5640_enum_frameintervals,
+   .enum_frame_size        = ov5640_enum_framesizes,
+	.enum_mbus_code         = ov5640_enum_mbus_code,
+	.set_fmt	               = ov5640_set_fmt,
 };
 
 static struct v4l2_subdev_core_ops ov5640_subdev_core_ops = {
