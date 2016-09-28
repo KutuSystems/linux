@@ -308,6 +308,7 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
          }
          val = arg |(INTERRUPT_MASK<<16);
          fos_write_reg(fos, R_INTERRUPT, val);
+         fos->int_active_mask = arg;
 
          return 0;
 
@@ -379,8 +380,9 @@ irqreturn_t fos_isr(int irq, void *data)
 
    if (status & STAT_DEBUG_INT_FLAG) {
       // clear interrupt by disabling
-      fos->int_active_mask &= ~BIT_INT_DEBUG;
-      fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
+      //fos->int_active_mask &= ~BIT_INT_DEBUG;
+      //fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
+      fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_DEBUG);
       // increment count
       fos->debug_int_count++;
    }
