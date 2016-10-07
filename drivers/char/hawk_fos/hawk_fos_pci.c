@@ -306,9 +306,8 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             printk(KERN_DEBUG "FOS_INTERRUPT_ENABLE: incorrect mask\n");
             return -EFAULT;
          }
-         val = arg |(INTERRUPT_MASK<<16);
-         fos_write_reg(fos, R_INTERRUPT, val);
          fos->int_active_mask = arg;
+         fos_write_reg(fos, R_INTERRUPT, arg);
 
          return 0;
 
