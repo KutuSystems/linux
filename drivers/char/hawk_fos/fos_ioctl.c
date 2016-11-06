@@ -78,7 +78,7 @@ int FOS_Set_Pulse(struct fos_drvdata *fos, void *user_ptr)
    pulse_width_EOM   = pulse.pulse_width_EOM/5;
    pulse_width_gain  = pulse.pulse_width_gain/5;
 
-   rate_reg = (pulse_rate & 0x3f)|((pulse_delay & 0xff) << 8);
+   rate_reg = (pulse_rate & 0xff)|((pulse_delay & 0xff) << 8);
    width_reg = ((pulse_width_gain & 0x1ff) << 16)|((pulse_width_AOM & 0x3f) << 8)|(pulse_width_EOM & 0x3f);
 
    fos_write_reg(fos, R_PULSE_RATE, rate_reg);

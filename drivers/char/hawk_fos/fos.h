@@ -142,7 +142,8 @@ enum fos_user_cmds
    FOS_CONTINUOUS_SCAN,
    FOS_REG_DEBUG,
    FOS_INTERRUPT_ENABLE,
-   FOS_INTERRUPT_STATUS
+   FOS_INTERRUPT_STATUS,
+   FOS_DMA_REG_DEBUG
 };
 
 
@@ -260,5 +261,6 @@ struct FOS_debug_struct {
 #define FOS_REG_DEBUG               _IOWR(FOS_IOCTL_BASE, 0x93, struct FOS_cmd_struct)
 #define FOS_INTERRUPT_ENABLE        _IOWR(FOS_IOCTL_BASE, 0x94, struct FOS_cmd_struct)
 #define FOS_INTERRUPT_STATUS        _IOWR(FOS_IOCTL_BASE, 0x95, struct FOS_cmd_struct)
+#define FOS_DMA_REG_DEBUG           _IOWR(FOS_IOCTL_BASE, 0x96, struct FOS_cmd_struct)
 
 #endif /* _FOS_H */

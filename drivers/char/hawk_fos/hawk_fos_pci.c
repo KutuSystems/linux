@@ -158,7 +158,7 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
    //   int __user *ip = (int __user *)arg;
    void  *arg_ptr = (void *)arg;
    long  ret = 0;
-   u32      val;
+//   u32      val;
    struct FOS_transfer_data_struct tfer_cmd;
    struct FOS_debug_struct debug_cmd;
    struct FOS_int_status_struct int_status;
@@ -300,6 +300,27 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
          }
          return 0;
 
+      case FOS_DMA_REG_DEBUG:
+
+         if (copy_from_user(&debug_cmd, arg_ptr, sizeof(debug_cmd))) {
+            printk(KERN_DEBUG "FOS_REG_DEBUG: copy failed\n");
+
+            return -EFAULT;
+         }
+
+         if (debug_cmd.cmd == FOS_DEBUG_WRITE){
+            fosdma_write_reg(fos, debug_cmd.reg, debug_cmd.data);
+            return 0;
+         }
+
+         if (debug_cmd.cmd == FOS_DEBUG_READ)
+            debug_cmd.data = fosdma_read_reg(fos, debug_cmd.reg);
+
+         if (copy_to_user(arg_ptr, &debug_cmd, sizeof(debug_cmd))) {
+            return -EFAULT;
+         }
+         return 0;
+
       case FOS_INTERRUPT_ENABLE:
          // enables and clears selected interrupts
          if (arg & ~INTERRUPT_MASK) {
@@ -349,8 +370,17 @@ irqreturn_t fos_isr(int irq, void *data)
 {
    struct fos_drvdata *fos = data;
    u32   status,int_active_mask;
+   unsigned long flags;
 
-   spin_lock(&fos->lock);
+   //spin_lock(&fos->lock);
+   spin_lock_irqsave(&fos->lock, flags);
+
+   status = fosdma_read_reg(fos, 0x2048);
+   printk(KERN_DEBUG "FOS_ISR: user_irq_pending = 0x%08x\n",status);
+   status = fosdma_read_reg(fos, 0x2040);
+   printk(KERN_DEBUG "FOS_ISR: user_irq_request = 0x%08x\n",status);
+
+   fosdma_write_reg(fos, 0x2004,0);
 
    status            = fos_read_reg(fos, R_RUN_STATUS);
    int_active_mask   = fos->int_active_mask;
@@ -384,6 +414,8 @@ irqreturn_t fos_isr(int irq, void *data)
       fos_write_reg(fos, R_INTERRUPT, int_active_mask|BIT_CLR_DEBUG);
       // increment count
       fos->debug_int_count++;
+      status = fosdma_read_reg(fos, 0x2048);
+      printk(KERN_DEBUG "FOS_ISR: user_irq_pending after DEBUG_INT clear = 0x%08x\n",status);
    }
 
    if (status & STAT_EDFA_INT_FLAG) {
@@ -431,7 +463,10 @@ irqreturn_t fos_isr(int irq, void *data)
 
    fos->irq_count++;
 
-   spin_unlock(&fos->lock);
+   fosdma_write_reg(fos, 0x2004,1);
+
+   //spin_unlock(&fos->lock);
+   spin_unlock_irqrestore(&fos->lock, flags);
 
    return IRQ_HANDLED;
 }
@@ -476,6 +511,8 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
       dev_err(dev,"pci_enable_device() succeeded.\n");
    }
 
+   pci_set_master(pdev);
+
    // allocate private memory
 	fos = devm_kzalloc(&pdev->dev, sizeof(*fos), GFP_KERNEL);
 	if (!fos)
@@ -516,11 +553,18 @@ static int fos_probe(struct pci_dev *pdev, const struct pci_device_id *id)
       dev_err(dev, "pci_request_regions() succeeded.\n");
    }
 
-   ret = pci_resource_start(pdev, 0);
-   dev_err(dev, "BAR0 is located at physical address 0x%x\n",ret);
-
    // base register is BAR0
    fos->base = pci_iomap(pdev,0,pci_resource_len(pdev, 0));
+   ret = pci_resource_start(pdev, 0);
+   dev_err(dev, "BAR0 is located at physical addr 0x%x, virtual addr 0x%llx\n",ret, (u64)fos->base);
+
+   if(fos->dev64_support)
+   {
+      // dma base register is BAR1 (BAR2_BAR3 for 64-bit)
+      fos->dma_base = pci_iomap(pdev,2,pci_resource_len(pdev, 2));
+      ret = pci_resource_start(pdev, 2);
+      dev_err(dev, "BAR1 is located at physical addr 0x%x, virtual addr 0x%llx\n",ret, (u64)fos->dma_base);
+   }
 
    fos->config_state = 0;
 
