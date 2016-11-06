@@ -340,6 +340,92 @@ int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
 }
 
 //
+// FOS_transfer_to_user()
+//
+// transfer data array to user space
+//
+int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd)
+{
+   u32 *user_addr,addr_offset,row_stride;
+   u32 index_min,index_max,index_last;
+
+   index_min = 10000000;
+   index_max = 0;
+
+   // calculate number areas to transfer, and columns needed
+   for(i=0; i<MAX_DATA_AREAS; i++) {
+
+      // check if message is valid
+      if ((cmd->list_next[i] != FOS_LINKED_LIST_NEXT) && (cmd->list_next[i] != FOS_LINKED_LIST_LAST))
+         return -1;
+
+      if (cmd->first_column[i] < index_min)
+         index_min = cmd->first_column[i];
+
+      if (cmd->last_column[i] > index_max)
+         index_max = cmd->last_column[i];
+
+      if (cmd->list_next[i] == FOS_LINKED_LIST_LAST) {
+         index_last = i;
+         i = MAX_DATA_AREAS;
+      }
+   }
+
+   // align transfer to 32 column boundaries
+   index_min &= 0xffffffe0;
+   index_max += 0x1f;
+   index_max &= 0xffffffe0;
+
+
+
+
+
+
+   num_columns = cmd->num_columns & 0xffffffc0;
+   if (num_columns != cmd->num_columns) {
+      printk(KERN_DEBUG "columns not aligned to 64 bytes = %d\n",cmd->num_columns);
+      return -1;
+   }
+
+   num_rows    = cmd->num_rows;
+
+   transfer_size = num_rows * num_columns;
+   last_addr = cmd->host_offset_addr + transfer_size;
+
+   if (last_addr > DMA_LENGTH) {
+      printk(KERN_DEBUG "Transfer range outside of allowable range, start = 0x%08x, end offset - 0x%08x\n",cmd->host_offset_addr,last_addr);
+      return -2;
+   }
+
+   row_stride  = cmd->mig_stride;
+
+   if (transfer_size == 0) {
+      printk(KERN_DEBUG "transfer size not valid = %d\n",transfer_size);
+      return -3;
+   }
+
+   host_addr = fos->dma_handle;
+   host_addr += cmd->host_offset_addr;
+
+#ifdef DEBUG
+   printk(KERN_DEBUG "MIG ddress for mig2host transfer is 0x%08x, size of request is %d bytes\n",cmd->mig_base_address,transfer_size);
+   printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d\n",row_stride,num_columns,num_rows);
+   printk(KERN_DEBUG "Host address for mig2host transfer is 0x%llx\n",host_addr);
+#endif
+
+   // if DMA transfer then start controller
+   fos_write_reg(fos, R_MIG2HOST_READ_ADDR, cmd->mig_base_address);
+   fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
+   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, num_columns);
+   fos_write_reg64(fos, R_MIG2HOST_WRITE_ADDR, host_addr);
+//   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
+//   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR_HI, 0);
+   fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
+
+   return 0;
+}
+
+//
 // FOS_tfer_host2mig()
 //
 // Read a 2-dimensional block of data from test
