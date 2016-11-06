@@ -120,6 +120,9 @@
 #define FOS_DEBUG_DMA_READ       3
 #define FOS_DEBUG_DMA_WRITE      4
 
+#define MAX_DATA_AREAS           8
+#define FOS_LINKED_LIST_NEXT     0x12348765
+#define FOS_LINKED_LIST_LAST     0xabcd4321
 
 enum fos_user_cmds
 {
@@ -143,7 +146,8 @@ enum fos_user_cmds
    FOS_REG_DEBUG,
    FOS_INTERRUPT_ENABLE,
    FOS_INTERRUPT_STATUS,
-   FOS_DMA_REG_DEBUG
+   FOS_DMA_REG_DEBUG,
+   FOS_TRANSFER_TO_USER
 };
 
 
@@ -215,6 +219,15 @@ struct FOS_transfer_data_struct {
    __u32                         host_offset_addr; // offset from start of DMA buffer
 } ;
 
+struct FOS_transfer_user_struct {
+   __u32                         *user_address;    // address of user memory
+   __u32                         mig_stride;       // memory stride
+   __u32                         num_rows;         // Number of rows to transfer
+   __u32                         first_column[MAX_DATA_AREAS];
+   __u32                         last_column[MAX_DATA_AREAS];
+   __u32                         list_next[MAX_DATA_AREAS];
+} ;
+
 struct FOS_int_status_struct {
    __u32 int_active_mask;
    __u32 irq_count;
@@ -262,5 +275,6 @@ struct FOS_debug_struct {
 #define FOS_INTERRUPT_ENABLE        _IOWR(FOS_IOCTL_BASE, 0x94, struct FOS_cmd_struct)
 #define FOS_INTERRUPT_STATUS        _IOWR(FOS_IOCTL_BASE, 0x95, struct FOS_cmd_struct)
 #define FOS_DMA_REG_DEBUG           _IOWR(FOS_IOCTL_BASE, 0x96, struct FOS_cmd_struct)
+#define FOS_TRANSFER_TO_USER        _IOWR(FOS_IOCTL_BASE, 0x97, struct FOS_cmd_struct)
 
 #endif /* _FOS_H */

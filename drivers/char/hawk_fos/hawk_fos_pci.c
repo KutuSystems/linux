@@ -160,6 +160,7 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
    long  ret = 0;
 //   u32      val;
    struct FOS_transfer_data_struct tfer_cmd;
+   struct FOS_transfer_user_struct tfer_user_cmd;
    struct FOS_debug_struct debug_cmd;
    struct FOS_int_status_struct int_status;
 
@@ -221,6 +222,16 @@ static long fos_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             return -EFAULT;
          }
          ret = FOS_tfer_mig2host(fos, &tfer_cmd);
+         return ret;
+
+      case FOS_TRANSFER_TO_USER:
+
+         if (copy_from_user(&tfer_user_cmd, arg_ptr, sizeof(tfer_user_cmd))) {
+            printk(KERN_DEBUG "FOS_TRANSFER_TO_USER: copy failed\n");
+
+            return -EFAULT;
+         }
+         ret = FOS_transfer_to_user(fos, &tfer_user_cmd);
          return ret;
 
       case FOS_USER_HOST2MIG_DATA:
