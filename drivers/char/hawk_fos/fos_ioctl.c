@@ -344,10 +344,14 @@ int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
 //
 // transfer data array to user space
 //
-int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd)
+int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struct *cmd)
 {
-   u32 *user_addr,addr_offset,row_stride;
+   struct FOS_transfer_data_struct tfer;
+   u32 *user_addr,row_stride;
    u32 index_min,index_max,index_last;
+   u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer;
+   u32 mig_start_addr,status;
+   int i;
 
    index_min = 10000000;
    index_max = 0;
@@ -371,56 +375,80 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_data_struc
       }
    }
 
+   if (index_min == index_max)
+      return -1;
+
    // align transfer to 32 column boundaries
    index_min &= 0xffffffe0;
    index_max += 0x1f;
    index_max &= 0xffffffe0;
 
+   dma_line_size = (index_max - index_min) * 2;
 
+   user_addr = cmd->user_address;
 
+   // calculate rows
+   current_row = cmd->first_row;
+   last_row = cmd->num_rows + current_row - 1;
 
+   if (current_row > 1023)
+      return -1;
 
+   if (last_row > 1023)
+      return -1;
 
-   num_columns = cmd->num_columns & 0xffffffc0;
-   if (num_columns != cmd->num_columns) {
-      printk(KERN_DEBUG "columns not aligned to 64 bytes = %d\n",cmd->num_columns);
+   rows_per_transfer = DMA_TRANSFER_SIZE/dma_line_size;
+   last_transfer = 0;
+
+   if (rows_per_transfer > cmd->num_rows) {
+      rows_per_transfer = cmd->num_rows;
+      last_transfer = 1;
+   }
+
+   mig_start_addr = current_row * row_stride + index_min*2;
+
+   // send first transfer request
+   tfer.mig_base_address = mig_start_addr;
+   tfer.mig_stride = row_stride;
+   tfer.num_columns = dma_line_size;
+   tfer.num_rows = rows_per_transfer;
+   tfer.host_offset_addr = 0;
+
+   // send data transfer command
+   if (FOS_tfer_mig2host(fos, &tfer))
+   {
+      printk(KERN_DEBUG "FOS_USER_MIG2HOST_DATA failed!!\n");
       return -1;
    }
 
-   num_rows    = cmd->num_rows;
-
-   transfer_size = num_rows * num_columns;
-   last_addr = cmd->host_offset_addr + transfer_size;
-
-   if (last_addr > DMA_LENGTH) {
-      printk(KERN_DEBUG "Transfer range outside of allowable range, start = 0x%08x, end offset - 0x%08x\n",cmd->host_offset_addr,last_addr);
-      return -2;
+   // wait for transfer to finish
+   while (!status) {
+      status = FOS_Status(fos);
+      status &= STAT_MIG2HOST_INT_FLAG;
+      udelay(100);
    }
 
-   row_stride  = cmd->mig_stride;
+   while (last_transfer == 0) {
+      // calculate next transfer
+      current_row += rows_per_transfer;
 
-   if (transfer_size == 0) {
-      printk(KERN_DEBUG "transfer size not valid = %d\n",transfer_size);
-      return -3;
+      if ((last_row - current_row) < rows_per_transfer) {
+         rows_per_transfer = last_row - current_row;
+         last_transfer = 1;
+      }
+
+
+      // wait for transfer to finish
+      while (!status) {
+         status = FOS_Status(fos);
+         status &= STAT_MIG2HOST_INT_FLAG;
+         udelay(100);
+      }
    }
 
-   host_addr = fos->dma_handle;
-   host_addr += cmd->host_offset_addr;
-
-#ifdef DEBUG
-   printk(KERN_DEBUG "MIG ddress for mig2host transfer is 0x%08x, size of request is %d bytes\n",cmd->mig_base_address,transfer_size);
-   printk(KERN_DEBUG "stride = 0x%x, num_columns = %d, num_rows = %d\n",row_stride,num_columns,num_rows);
-   printk(KERN_DEBUG "Host address for mig2host transfer is 0x%llx\n",host_addr);
-#endif
-
-   // if DMA transfer then start controller
-   fos_write_reg(fos, R_MIG2HOST_READ_ADDR, cmd->mig_base_address);
-   fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
-   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, num_columns);
-   fos_write_reg64(fos, R_MIG2HOST_WRITE_ADDR, host_addr);
-//   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
-//   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR_HI, 0);
-   fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
+   if (copy_to_user(user_addr, fos->dma_addr, (cmd->num_rows*dma_line_size))) {
+      return -EFAULT;
+   }
 
    return 0;
 }

@@ -71,7 +71,7 @@
 #define R_HOST2MIG_READ_ADDR     0x0090
 #define R_HOST2MIG_READ_ADDR_HI  0x0094
 
-
+#define DMA_TRANSFER_SIZE        0x100000
 
 #define INTERRUPT_MASK           0x03ff   // There are 10 interrupt sources
 
@@ -343,6 +343,13 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr);
 // -1 is returned if error, number of bytes is returned if ok.
 //
 int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *cmd);
+
+//
+// FOS_transfer_to_user()
+//
+// transfer data array to user space
+//
+int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struct *cmd);
 
 //
 // FOS_tfer_host2mig()

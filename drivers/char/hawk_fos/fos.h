@@ -222,6 +222,7 @@ struct FOS_transfer_data_struct {
 struct FOS_transfer_user_struct {
    __u32                         *user_address;    // address of user memory
    __u32                         mig_stride;       // memory stride
+   __u32                         first_row;        // first row to transfer (starts at 0)
    __u32                         num_rows;         // Number of rows to transfer
    __u32                         first_column[MAX_DATA_AREAS];
    __u32                         last_column[MAX_DATA_AREAS];
