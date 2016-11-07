@@ -350,11 +350,14 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    u32 *user_addr,row_stride;
    u32 index_min,index_max,index_last;
    u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer;
-   u32 mig_start_addr,status;
+   u32 mig_start_addr,status,ping,pong,tmp;
    int i;
 
    index_min = 10000000;
    index_max = 0;
+
+   ping = 0;
+   pong = DMA_TRANSFER_SIZE;
 
    // calculate number areas to transfer, and columns needed
    for(i=0; i<MAX_DATA_AREAS; i++) {
@@ -412,7 +415,10 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    tfer.mig_stride = row_stride;
    tfer.num_columns = dma_line_size;
    tfer.num_rows = rows_per_transfer;
-   tfer.host_offset_addr = 0;
+   tfer.host_offset_addr = ping;
+   tmp = ping;
+   ping = pong;
+   pong = tmp;
 
    // send data transfer command
    if (FOS_tfer_mig2host(fos, &tfer))
@@ -431,18 +437,44 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    while (last_transfer == 0) {
       // calculate next transfer
       current_row += rows_per_transfer;
+      mig_start_addr += rows_per_transfer * row_stride;
 
       if ((last_row - current_row) < rows_per_transfer) {
          rows_per_transfer = last_row - current_row;
          last_transfer = 1;
       }
 
+      // send next transfer request
+      tfer.mig_base_address = mig_start_addr;
+      tfer.mig_stride = row_stride;
+      tfer.num_columns = dma_line_size;
+      tfer.num_rows = rows_per_transfer;
+      tfer.host_offset_addr = ping;
+      tmp = ping;
+      ping = pong;
+      pong = tmp;
+
+      // send data transfer command
+      if (FOS_tfer_mig2host(fos, &tfer))
+      {
+         printk(KERN_DEBUG "FOS_USER_MIG2HOST_DATA failed!!\n");
+         return -1;
+      }
+
+      // copy data to user space
+      if (copy_to_user(user_addr, fos->dma_addr, (cmd->num_rows*dma_line_size))) {
+         return -EFAULT;
+      }
+
+      // update userspace address
+      user_addr += cmd->num_rows*dma_line_size;
 
       // wait for transfer to finish
+      status = FOS_Status(fos) & STAT_MIG2HOST_INT_FLAG;
       while (!status) {
+         udelay(100);
          status = FOS_Status(fos);
          status &= STAT_MIG2HOST_INT_FLAG;
-         udelay(100);
       }
    }
 

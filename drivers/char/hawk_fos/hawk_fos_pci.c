@@ -386,13 +386,6 @@ irqreturn_t fos_isr(int irq, void *data)
    //spin_lock(&fos->lock);
    spin_lock_irqsave(&fos->lock, flags);
 
-   status = fosdma_read_reg(fos, 0x2048);
-   printk(KERN_DEBUG "FOS_ISR: user_irq_pending = 0x%08x\n",status);
-   status = fosdma_read_reg(fos, 0x2040);
-   printk(KERN_DEBUG "FOS_ISR: user_irq_request = 0x%08x\n",status);
-
-   fosdma_write_reg(fos, 0x2004,0);
-
    status            = fos_read_reg(fos, R_RUN_STATUS);
    int_active_mask   = fos->int_active_mask;
 
@@ -473,8 +466,6 @@ irqreturn_t fos_isr(int irq, void *data)
 
 
    fos->irq_count++;
-
-   fosdma_write_reg(fos, 0x2004,1);
 
    //spin_unlock(&fos->lock);
    spin_unlock_irqrestore(&fos->lock, flags);
