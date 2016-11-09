@@ -351,6 +351,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    u32 index_min,index_max,index_last;
    u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer;
    u32 mig_start_addr,status,ping,pong,tmp;
+   u32 interrupt_status;
    int i;
 
    index_min = 10000000;
@@ -420,10 +421,18 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    ping = pong;
    pong = tmp;
 
+   // disable host2mig interrupt
+   interrupt_status = fos->int_active_mask & BIT_INT_HOST2MIG;
+   fos->int_active_mask &= ~BIT_INT_HOST2MIG;
+   fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
+
    // send data transfer command
    if (FOS_tfer_mig2host(fos, &tfer))
    {
       printk(KERN_DEBUG "FOS_USER_MIG2HOST_DATA failed!!\n");
+      // renable host2mig interrupt
+      fos->int_active_mask |= interrupt_status;
+      fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
       return -1;
    }
 
@@ -458,11 +467,17 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       if (FOS_tfer_mig2host(fos, &tfer))
       {
          printk(KERN_DEBUG "FOS_USER_MIG2HOST_DATA failed!!\n");
+         // renable host2mig interrupt
+         fos->int_active_mask |= interrupt_status;
+         fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
          return -1;
       }
 
       // copy data to user space
-      if (copy_to_user(user_addr, fos->dma_addr, (cmd->num_rows*dma_line_size))) {
+      if (copy_to_user(user_addr, fos->dma_addr+ping, (cmd->num_rows*dma_line_size))) {
+         // renable host2mig interrupt
+         fos->int_active_mask |= interrupt_status;
+         fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
          return -EFAULT;
       }
 
@@ -478,7 +493,12 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       }
    }
 
-   if (copy_to_user(user_addr, fos->dma_addr, (cmd->num_rows*dma_line_size))) {
+   // renable host2mig interrupt
+   fos->int_active_mask |= interrupt_status;
+   fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
+
+   // copy last data block to user space
+   if (copy_to_user(user_addr, fos->dma_addr+pong, (cmd->num_rows*dma_line_size))) {
       return -EFAULT;
    }
 
