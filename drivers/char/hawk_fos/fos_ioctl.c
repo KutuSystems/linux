@@ -31,6 +31,8 @@
 #include <linux/iio/buffer.h>
 
 #define DEBUG
+//#define TRANSFER_USER_DEBUG
+
 //
 // FOS_Status()
 //
@@ -268,7 +270,7 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
    dma_size = (read_cmd->num_rows *read_cmd->num_columns* read_cmd->datatype)>>3;
    fos_write_reg(fos, R_MIG2HOST_COL_COUNT, dma_size);
 #ifdef DEBUG
-  printk(KERN_DEBUG "DMA size = 0x%d = %d 64-bit words\n",dma_size,dma_size);
+   printk(KERN_DEBUG "DMA size = 0x%d = %d 64-bit words\n",dma_size,dma_size);
 #endif
 
    if (cmd.run_test != RUN_NO_TEST) {
@@ -332,8 +334,8 @@ int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
    fos_write_reg(fos, R_MIG2HOST_STRIDE, row_stride);
    fos_write_reg(fos, R_MIG2HOST_COL_COUNT, num_columns);
    fos_write_reg64(fos, R_MIG2HOST_WRITE_ADDR, host_addr);
-//   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
-//   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR_HI, 0);
+   //   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR, fos->dma_handle + cmd->host_offset_addr);
+   //   fos_write_reg(fos, R_MIG2HOST_WRITE_ADDR_HI, 0);
    fos_write_reg(fos, R_MIG2HOST_ROW_COUNT, num_rows);
 
    return 0;
@@ -351,8 +353,13 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    u32 index_min,index_max,index_last;
    u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer;
    u32 mig_start_addr,status,ping,pong,tmp;
-   u32 interrupt_status;
+   u32 interrupt_status,mig2host_int_count;
    int i;
+
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "entered TRANSFER_TO_USER\n");
+#endif
+
 
    index_min = 10000000;
    index_max = 0;
@@ -370,8 +377,8 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       if (cmd->first_column[i] < index_min)
          index_min = cmd->first_column[i];
 
-      if (cmd->last_column[i] > index_max)
-         index_max = cmd->last_column[i];
+      if ((cmd->num_columns[i] + cmd->first_column[i]) > index_max)
+         index_max = cmd->num_columns[i] + cmd->first_column[i];
 
       if (cmd->list_next[i] == FOS_LINKED_LIST_LAST) {
          index_last = i;
@@ -409,6 +416,8 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       last_transfer = 1;
    }
 
+   row_stride  = cmd->mig_stride;
+
    mig_start_addr = current_row * row_stride + index_min*2;
 
    // send first transfer request
@@ -421,27 +430,48 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    ping = pong;
    pong = tmp;
 
-   // disable host2mig interrupt
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "mig base address = 0x%x\n", tfer.mig_base_address);
+   printk(KERN_DEBUG "mig stride = 0x%x\n", tfer.mig_stride);
+   printk(KERN_DEBUG "num columns = 0x%x\n", tfer.num_columns);
+   printk(KERN_DEBUG "num rows = 0x%x\n", tfer.num_rows);
+   printk(KERN_DEBUG "host_offset = 0x%x\n", tfer.host_offset_addr);
+#endif
+
+   // enable host2mig interrupt
    interrupt_status = fos->int_active_mask & BIT_INT_HOST2MIG;
-   fos->int_active_mask &= ~BIT_INT_HOST2MIG;
+   fos->int_active_mask |= BIT_INT_HOST2MIG;
    fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
 
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "start first transfer\n");
+#endif
+
    // send data transfer command
+   mig2host_int_count = fos->mig2host_int_count;
    if (FOS_tfer_mig2host(fos, &tfer))
    {
       printk(KERN_DEBUG "FOS_USER_MIG2HOST_DATA failed!!\n");
       // renable host2mig interrupt
+      fos->int_active_mask &= ~BIT_INT_HOST2MIG;
       fos->int_active_mask |= interrupt_status;
       fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
       return -1;
    }
 
    // wait for transfer to finish
-   while (!status) {
+   status = FOS_Status(fos) & STAT_MIG2HOST_INT_FLAG;
+   while ((!status) && (mig2host_int_count = fos->mig2host_int_count)){
+      udelay(100);
       status = FOS_Status(fos);
       status &= STAT_MIG2HOST_INT_FLAG;
-      udelay(100);
    }
+
+
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "finished first transfer\n");
+#endif
+
 
    while (last_transfer == 0) {
       // calculate next transfer
@@ -463,19 +493,35 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       ping = pong;
       pong = tmp;
 
+#ifdef TRANSFER_USER_DEBUG
+      printk(KERN_DEBUG "mig base address = 0x%x\n", tfer.mig_base_address);
+      printk(KERN_DEBUG "mig stride = 0x%x\n", tfer.mig_stride);
+      printk(KERN_DEBUG "num columns = 0x%x\n", tfer.num_columns);
+      printk(KERN_DEBUG "num rows = 0x%x\n", tfer.num_rows);
+      printk(KERN_DEBUG "host_offset = 0x%x\n", tfer.host_offset_addr);
+      printk(KERN_DEBUG "start next transfer\n");
+#endif
+
       // send data transfer command
+      mig2host_int_count = fos->mig2host_int_count;
       if (FOS_tfer_mig2host(fos, &tfer))
       {
          printk(KERN_DEBUG "FOS_USER_MIG2HOST_DATA failed!!\n");
          // renable host2mig interrupt
+         fos->int_active_mask &= ~BIT_INT_HOST2MIG;
          fos->int_active_mask |= interrupt_status;
          fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
          return -1;
       }
 
+#ifdef TRANSFER_USER_DEBUG
+      printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
+#endif
+
       // copy data to user space
       if (copy_to_user(user_addr, fos->dma_addr+ping, (cmd->num_rows*dma_line_size))) {
          // renable host2mig interrupt
+         fos->int_active_mask &= ~BIT_INT_HOST2MIG;
          fos->int_active_mask |= interrupt_status;
          fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
          return -EFAULT;
@@ -484,23 +530,40 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       // update userspace address
       user_addr += cmd->num_rows*dma_line_size;
 
+#ifdef TRANSFER_USER_DEBUG
+      printk(KERN_DEBUG "wait for transfer\n");
+#endif
+
       // wait for transfer to finish
       status = FOS_Status(fos) & STAT_MIG2HOST_INT_FLAG;
-      while (!status) {
+      while ((!status) && (mig2host_int_count = fos->mig2host_int_count)){
          udelay(100);
          status = FOS_Status(fos);
          status &= STAT_MIG2HOST_INT_FLAG;
       }
+
+#ifdef TRANSFER_USER_DEBUG
+      printk(KERN_DEBUG "finished next transfer\n");
+#endif
    }
 
-   // renable host2mig interrupt
+   // restore host2mig interrupt
+   fos->int_active_mask &= ~BIT_INT_HOST2MIG;
    fos->int_active_mask |= interrupt_status;
    fos_write_reg(fos, R_INTERRUPT, fos->int_active_mask);
+
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
+#endif
 
    // copy last data block to user space
    if (copy_to_user(user_addr, fos->dma_addr+pong, (cmd->num_rows*dma_line_size))) {
       return -EFAULT;
    }
+
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "exit TRANSFER_USER_DEBUG\n");
+#endif
 
    return 0;
 }
@@ -553,7 +616,7 @@ int FOS_tfer_host2mig(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
    fos_write_reg(fos, R_HOST2MIG_WRITE_ADDR, cmd->mig_base_address);
    fos_write_reg(fos, R_HOST2MIG_STRIDE, row_stride);
    fos_write_reg(fos, R_HOST2MIG_COL_COUNT, num_columns);
-//   fos_write_reg64(fos, R_HOST2MIG_READ_ADDR, host_addr);
+   //   fos_write_reg64(fos, R_HOST2MIG_READ_ADDR, host_addr);
    fos_write_reg(fos, R_HOST2MIG_READ_ADDR, (u32)(host_addr & 0xffffffff));
    fos_write_reg(fos, R_HOST2MIG_READ_ADDR_HI, (u32)(host_addr >> 32));
    fos_write_reg(fos, R_HOST2MIG_ROW_COUNT, num_rows);
@@ -609,7 +672,7 @@ int FOS_SPI_Write(struct fos_drvdata *fos, void *user_ptr)
    }
 
    if (cmd.num_spi_writes == 0)
-     return 0;
+      return 0;
 
    if (cmd.num_spi_writes > 16)
       return -EFAULT;

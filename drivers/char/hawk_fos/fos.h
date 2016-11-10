@@ -225,7 +225,7 @@ struct FOS_transfer_user_struct {
    __u32                         first_row;        // first row to transfer (starts at 0)
    __u32                         num_rows;         // Number of rows to transfer
    __u32                         first_column[MAX_DATA_AREAS];
-   __u32                         last_column[MAX_DATA_AREAS];
+   __u32                         num_columns[MAX_DATA_AREAS];
    __u32                         list_next[MAX_DATA_AREAS];
 } ;
 
