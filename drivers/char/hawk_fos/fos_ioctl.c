@@ -31,7 +31,7 @@
 #include <linux/iio/buffer.h>
 
 #define DEBUG
-#define TRANSFER_USER_DEBUG
+//#define TRANSFER_USER_DEBUG
 
 //
 // FOS_Status()
@@ -349,7 +349,7 @@ int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
 int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struct *cmd)
 {
    struct FOS_transfer_data_struct tfer;
-   u32 *user_addr,row_stride;
+   u32 *user_addr,user_addr_inc,row_stride;
    u32 index_min,index_max,index_last;
    u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer,rows_pt_last;
    u32 mig_start_addr,status,ping,pong,tmp;
@@ -419,16 +419,18 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    } else {
       count = 1;
       rows_pt_last = cmd->num_rows;
-      while(rows_pt_last > cmd->num_rows) {
+      while(rows_pt_last > rows_per_transfer) {
          rows_pt_last -= rows_per_transfer;
          count++;
       }
    }
+   user_addr_inc = rows_per_transfer*dma_line_size/4;
 
 #ifdef TRANSFER_USER_DEBUG
    printk(KERN_DEBUG "cmd->num_rows = %d\n", cmd->num_rows);
    printk(KERN_DEBUG "rows_pt_last = %d\n", rows_pt_last);
    printk(KERN_DEBUG "rows_per_transfer = %d\n", rows_per_transfer);
+   printk(KERN_DEBUG "user_addr_inc = %d\n", user_addr_inc);
    printk(KERN_DEBUG "number of transfers = %d\n", count);
 #endif
 
@@ -559,7 +561,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       }
 
       // update userspace address
-      user_addr += rows_per_transfer*dma_line_size;
+      user_addr += user_addr_inc;
 
 #ifdef TRANSFER_USER_DEBUG
       printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
