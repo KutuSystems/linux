@@ -463,7 +463,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    status = FOS_Status(fos) & STAT_MIG2HOST_INT_FLAG;
    count = 0;
    while ((!status) && (mig2host_int_count == fos->mig2host_int_count)){
-      udelay(100);
+      udelay(10);
       status = FOS_Status(fos);
       status &= STAT_MIG2HOST_INT_FLAG;
       count++;
@@ -474,7 +474,11 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    }
 
 #ifdef TRANSFER_USER_DEBUG
-   printk(KERN_DEBUG "finished first transfer, count = %d\n",count);
+      printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
+
+      printk(KERN_DEBUG "dma address = 0x%llx, ping = 0x%x \n", (unsigned long long)fos->dma_addr+ping,ping);
+
+      printk(KERN_DEBUG "finished first transfer, count = %d\n",count);
 #endif
 
 
@@ -494,9 +498,9 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       tfer.num_columns = dma_line_size;
       tfer.num_rows = rows_per_transfer;
       tfer.host_offset_addr = ping;
-//      tmp = ping;
-//      ping = pong;
-//      pong = tmp;
+      tmp = ping;
+      ping = pong;
+      pong = tmp;
 
 #ifdef TRANSFER_USER_DEBUG
       printk(KERN_DEBUG "mig base address = 0x%x\n", tfer.mig_base_address);
@@ -522,10 +526,12 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 
 #ifdef TRANSFER_USER_DEBUG
       printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
+
+      printk(KERN_DEBUG "dma address = 0x%llx, ping = 0x%x \n", (unsigned long long)fos->dma_addr+ping,ping);
 #endif
 
       // copy data to user space
-      if (copy_to_user(user_addr, fos->dma_addr+ping, (cmd->num_rows*dma_line_size))) {
+      if (copy_to_user(user_addr, fos->dma_addr+ping, (rows_per_transfer*dma_line_size))) {
          // renable host2mig interrupt
          fos->int_active_mask &= ~BIT_INT_MIG2HOST;
          fos->int_active_mask |= interrupt_status;
@@ -534,9 +540,12 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       }
 
       // update userspace address
-      user_addr += cmd->num_rows*dma_line_size;
+      user_addr += rows_per_transfer*dma_line_size;
 
 #ifdef TRANSFER_USER_DEBUG
+      printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
+
+
       printk(KERN_DEBUG "wait for transfer\n");
 #endif
 
@@ -544,7 +553,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       status = FOS_Status(fos) & STAT_MIG2HOST_INT_FLAG;
       count = 0;
       while ((!status) && (mig2host_int_count == fos->mig2host_int_count)){
-         udelay(100);
+         udelay(10);
          status = FOS_Status(fos);
          status &= STAT_MIG2HOST_INT_FLAG;
          count++;
