@@ -351,7 +351,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    struct FOS_transfer_data_struct tfer;
    u32 *user_addr,row_stride;
    u32 index_min,index_max,index_last;
-   u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer;
+   u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer,rows_pt_last;
    u32 mig_start_addr,status,ping,pong,tmp;
    u32 interrupt_status,mig2host_int_count;
    int i,count;
@@ -414,7 +414,24 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
    if (rows_per_transfer > cmd->num_rows) {
       rows_per_transfer = cmd->num_rows;
       last_transfer = 1;
+      rows_pt_last = cmd->num_rows;
+      count = 1;
+   } else {
+      count = 1;
+      rows_pt_last = cmd->num_rows;
+      while(rows_pt_last > cmd->num_rows) {
+         rows_pt_last -= rows_per_transfer;
+         count++;
+      }
    }
+
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "cmd->num_rows = %d\n", cmd->num_rows);
+   printk(KERN_DEBUG "rows_pt_last = %d\n", rows_pt_last);
+   printk(KERN_DEBUG "rows_per_transfer = %d\n", rows_per_transfer);
+   printk(KERN_DEBUG "number of transfers = %d\n", count);
+#endif
+
 
    row_stride  = cmd->mig_stride;
 
@@ -502,6 +519,8 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       ping = pong;
       pong = tmp;
 
+
+
 #ifdef TRANSFER_USER_DEBUG
       printk(KERN_DEBUG "mig base address = 0x%x\n", tfer.mig_base_address);
       printk(KERN_DEBUG "mig stride = 0x%x\n", tfer.mig_stride);
@@ -581,7 +600,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 #endif
 
    // copy last data block to user space
-   if (copy_to_user(user_addr, fos->dma_addr+pong, (cmd->num_rows*dma_line_size))) {
+   if (copy_to_user(user_addr, fos->dma_addr+pong, (rows_pt_last*dma_line_size))) {
       return -EFAULT;
    }
 
