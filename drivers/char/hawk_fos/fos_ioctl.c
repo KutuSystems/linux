@@ -349,7 +349,7 @@ int FOS_tfer_mig2host(struct fos_drvdata *fos, struct FOS_transfer_data_struct *
 int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struct *cmd)
 {
    struct FOS_transfer_data_struct tfer;
-   u32 *user_addr,user_addr_inc,row_stride;
+   u32 *user_addr,user_addr_inc,row_stride,mig_addr_offset;
    u32 index_min,index_max,index_last;
    u32 current_row,dma_line_size,last_row,rows_per_transfer,last_transfer,rows_pt_last;
    u32 mig_start_addr,status,ping,pong,tmp;
@@ -359,6 +359,28 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 #ifdef TRANSFER_USER_DEBUG
    printk(KERN_DEBUG "entered TRANSFER_TO_USER\n");
 #endif
+
+   if((cmd->command & TRANSFER_MASK) != TRANSFER_MAGIC) {
+      printk(KERN_DEBUG "invalid command!!!\n");
+      return -1;
+   }
+
+   if((cmd->command & TRANSFER_RDWR) == TRANSFER_WRITE) {
+      printk(KERN_DEBUG "Write not supported yet!!!\n");
+      return -1;
+   }
+
+   // check if using second area of memory buffer
+   if(((cmd->command & TRANSFER_CH) == TRANSFER_CH0) || ((cmd->command & TRANSFER_NUM_CH) == TRANSFER_SINGLE)) {
+      mig_addr_offset = 0;
+   } else {
+      mig_addr_offset = cmd->mig_stride/2;
+   }
+#ifdef TRANSFER_USER_DEBUG
+   printk(KERN_DEBUG "MIG address offset = 0x%x\n", mig_addr_offset);
+#endif
+
+
 
 
    index_min = 10000000;
@@ -435,7 +457,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 
    row_stride  = cmd->mig_stride;
 
-   mig_start_addr = current_row * row_stride + index_min*2;
+   mig_start_addr = (current_row * row_stride) + index_min*2 + mig_addr_offset;
 
    // send first transfer request
    tfer.mig_base_address = mig_start_addr;

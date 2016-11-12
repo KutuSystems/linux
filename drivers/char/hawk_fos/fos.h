@@ -124,6 +124,28 @@
 #define FOS_LINKED_LIST_NEXT     0x12348765
 #define FOS_LINKED_LIST_LAST     0xabcd4321
 
+
+#define TRANSFER_MASK            0xffff0000
+#define TRANSFER_CH              0x0001
+#define TRANSFER_NUM_CH          0x0002
+#define TRANSFER_RDWR            0x0004
+#define TRANSFER_DATA_MODE       0x0008
+
+#define TRANSFER_MAGIC           0xd45f0000
+#define TRANSFER_CH0             0x0000
+#define TRANSFER_CH1             0x0001
+#define TRANSFER_SINGLE          0x0000
+#define TRANSFER_DUAL            0x0002
+#define TRANSFER_READ            0x0000
+#define TRANSFER_WRITE           0x0004
+#define TRANSFER_RAW             0x0000
+#define TRANSFER_FILTERED        0x0008
+
+#define TRANSFER_RD_SINGLE_CH0      (TRANSFER_MAGIC|TRANSFER_SINGLE|TRANSFER_CH0|TRANSFER_READ|TRANSFER_RAW)
+#define TRANSFER_RD_SINGLE_CH1      (TRANSFER_MAGIC|TRANSFER_SINGLE|TRANSFER_CH1|TRANSFER_READ|TRANSFER_RAW)
+#define TRANSFER_RD_DUAL_CH0        (TRANSFER_MAGIC|TRANSFER_DUAL|TRANSFER_CH0|TRANSFER_READ|TRANSFER_RAW)
+#define TRANSFER_RD_DUAL_CH1        (TRANSFER_MAGIC|TRANSFER_DUAL|TRANSFER_CH1|TRANSFER_READ|TRANSFER_RAW)
+
 enum fos_user_cmds
 {
    FOS_USER_RESET,
@@ -221,6 +243,7 @@ struct FOS_transfer_data_struct {
 
 struct FOS_transfer_user_struct {
    __u32                         *user_address;    // address of user memory
+   __u32                         command;          // memory stride
    __u32                         mig_stride;       // memory stride
    __u32                         first_row;        // first row to transfer (starts at 0)
    __u32                         num_rows;         // Number of rows to transfer
