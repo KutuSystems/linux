@@ -386,7 +386,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       }
    }
 
-   if (index_min == index_max)
+   if (index_min >= index_max)
       return -1;
 
    // align transfer to 32 column boundaries
@@ -410,15 +410,13 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 
    rows_per_transfer = DMA_TRANSFER_SIZE/dma_line_size;
    last_transfer = 0;
+   count = 1;
+   rows_pt_last = cmd->num_rows;
 
-   if (rows_per_transfer > cmd->num_rows) {
+   if (rows_per_transfer >= cmd->num_rows) {
       rows_per_transfer = cmd->num_rows;
       last_transfer = 1;
-      rows_pt_last = cmd->num_rows;
-      count = 1;
    } else {
-      count = 1;
-      rows_pt_last = cmd->num_rows;
       while(rows_pt_last > rows_per_transfer) {
          rows_pt_last -= rows_per_transfer;
          count++;
@@ -507,15 +505,15 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
       mig_start_addr += rows_per_transfer * row_stride;
 
       if ((last_row - current_row) < rows_per_transfer) {
-         rows_per_transfer = last_row - current_row;
+         tfer.num_rows = last_row - current_row + 1;
          last_transfer = 1;
+      } else {
+         tfer.num_rows = rows_per_transfer;
       }
-
       // send next transfer request
       tfer.mig_base_address = mig_start_addr;
       tfer.mig_stride = row_stride;
       tfer.num_columns = dma_line_size;
-      tfer.num_rows = rows_per_transfer;
       tfer.host_offset_addr = ping;
       tmp = ping;
       ping = pong;
@@ -565,8 +563,6 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 
 #ifdef TRANSFER_USER_DEBUG
       printk(KERN_DEBUG "user address = 0x%llx\n", (unsigned long long)user_addr);
-
-
       printk(KERN_DEBUG "wait for transfer\n");
 #endif
 
@@ -586,6 +582,7 @@ int FOS_transfer_to_user(struct fos_drvdata *fos, struct FOS_transfer_user_struc
 
 #ifdef TRANSFER_USER_DEBUG
       printk(KERN_DEBUG "finished next transfer\n");
+      printk(KERN_DEBUG "finished first transfer, count = %d\n",count);
 #endif
    }
 
