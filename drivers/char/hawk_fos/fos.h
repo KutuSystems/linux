@@ -89,6 +89,7 @@
 #define SWEEP_TEST_MODE          0x200
 #define TEST_CLK_SELECT          0x400
 #define SMA_CLK_ENABLE           0x800
+#define GLOBAL_INT_ENABLE        0x1000
 
 #define CLK_400_MODE             0x0
 
@@ -193,8 +194,6 @@ struct FOS_cmd_struct {
 struct FOS_continuous_cmd_struct {
    __u32                           config;
    __u32                           run_test;
-   __u32                           start_column;
-   __u32                           end_column;
    __u32                           adc_count;
    __u32                           row_stride;
 } ;

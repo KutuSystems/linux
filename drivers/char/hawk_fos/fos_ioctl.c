@@ -182,9 +182,8 @@ int FOS_Run_Test(struct fos_drvdata *fos, void *user_ptr)
 int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
 {
    struct FOS_continuous_cmd_struct cmd;
-   struct FOS_read_data_struct *read_cmd;
 
-   u32   adc_count_value,dma_size,mode;
+   u32   adc_count_value,mode;
    u32   status;
 
    printk(KERN_DEBUG "ioctl: entered FOS_Continuous scan\n");
@@ -195,8 +194,8 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
       return -EFAULT;
    }
 
-   // if stop test then shut off controller and exit
-   if(cmd.run_test == 0) {
+   // if stop test then shut off controller, reconfigure config and exit
+   if(cmd.run_test == STOP_TEST) {
       fos_write_reg(fos, R_RUN_TEST, STOP_TEST);
       fos_write_reg(fos, R_BOTDA_END_FREQ, REPEAT_COUNT);
       return 0;
@@ -205,28 +204,21 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
    status = FOS_Status(fos);
    printk(KERN_DEBUG "ioctl: FOS_Continuous_scan, status = 0x%x\n",status);
 
-   if (status & SPI_BUSY_FLAG)
-      return -1;
-
    if (status & SWEEP_RUNNING_FLAG)
       return -2;
 
    if (status & TEST_RUNNING_FLAG)
       return -3;
 
-   // this is set to -1 so the first interrupt increments to 0 when the DMA is started
-   // The next interrupt will increment to 1 when the DMA has completed
-   fos->dma_block_count = -1;
-
    mode = cmd.config & MODE_BITS;
    if ((mode != COTDR_MODE) && (mode != COTDR_MODE_ALT) && (mode != COTDR_MODE_DUAL))
       return -4;
 
    // User can configure these options
-   cmd.config &= MODE_BITS|TEST_DATA_ENABLE|SWEEP_TEST_MODE|TEST_CLK_SELECT|SMA_CLK_ENABLE;
+   cmd.config &= MODE_BITS|TEST_DATA_ENABLE|TEST_CLK_SELECT|SMA_CLK_ENABLE;
 
    // These options are mandatory
-   fos->config_state = DMA_ACTIVE|CLK_200_MODE|cmd.config;
+   fos->config_state = GLOBAL_INT_ENABLE|cmd.config;
 
    // write out configuration
    fos_write_reg(fos, R_CONFIG, fos->config_state);
@@ -248,30 +240,6 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
 
    // use 1Mbyte blocks at the moment
    fos_write_reg(fos, R_MEM_STRIDE, cmd.row_stride);
-
-   // setup read command
-   read_cmd = &fos->repeat_read_cmd;
-   read_cmd->data = 0;
-   read_cmd->dma_active = 1;
-   read_cmd->dma_addr_offset = 0;
-
-   if (mode == COTDR_MODE_DUAL)
-      read_cmd->datatype = COTDR_DATA_SIZE*2;
-   else
-      read_cmd->datatype = COTDR_DATA_SIZE;
-
-   read_cmd->column = cmd.start_column;
-   read_cmd->num_columns = (cmd.end_column - cmd.start_column);
-   read_cmd->row = 0;
-   read_cmd->num_rows = 32;
-   read_cmd->row_stride = cmd.row_stride;
-
-   // write number of 64-bit transfers to dma size register
-   dma_size = (read_cmd->num_rows *read_cmd->num_columns* read_cmd->datatype)>>3;
-   fos_write_reg(fos, R_MIG2HOST_COL_COUNT, dma_size);
-#ifdef DEBUG
-   printk(KERN_DEBUG "DMA size = 0x%d = %d 64-bit words\n",dma_size,dma_size);
-#endif
 
    if (cmd.run_test != RUN_NO_TEST) {
       fos_write_reg(fos, R_RUN_TEST, START_TEST);
