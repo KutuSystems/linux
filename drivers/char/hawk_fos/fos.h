@@ -90,6 +90,8 @@
 #define TEST_CLK_SELECT          0x400
 #define SMA_CLK_ENABLE           0x800
 
+#define CLK_400_MODE             0x0
+
 #define REPEAT_LOOP              0x80000000
 #define INTERRUPT_ACTIVE         0x40000000
 #define REPEAT_COUNT             0x000003ff
