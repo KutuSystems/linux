@@ -215,7 +215,7 @@ int FOS_Continuous_Scan(struct fos_drvdata *fos, void *user_ptr)
       return -4;
 
    // User can configure these options
-   cmd.config &= MODE_BITS|TEST_DATA_ENABLE|TEST_CLK_SELECT|SMA_CLK_ENABLE;
+   cmd.config &= MODE_BITS|TEST_DATA_ENABLE|TEST_CLK_SELECT|SMA_CLK_ENABLE|CLK_200_MODE;
 
    // These options are mandatory
    fos->config_state = GLOBAL_INT_ENABLE|cmd.config;
