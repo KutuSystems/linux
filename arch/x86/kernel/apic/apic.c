@@ -48,7 +48,6 @@
 #include <asm/io_apic.h>
 #include <asm/desc.h>
 #include <asm/hpet.h>
-#include <asm/idle.h>
 #include <asm/mtrr.h>
 #include <asm/time.h>
 #include <asm/smp.h>
@@ -894,11 +893,13 @@ void __init setup_boot_APIC_clock(void)
 
 	/* Setup the lapic or request the broadcast */
 	setup_APIC_timer();
+	amd_e400_c1e_apic_setup();
 }
 
 void setup_secondary_APIC_clock(void)
 {
 	setup_APIC_timer();
+	amd_e400_c1e_apic_setup();
 }
 
 /*
@@ -2128,9 +2129,11 @@ int __generic_processor_info(int apicid, int version, bool enabled)
 	if (num_processors >= nr_cpu_ids) {
 		int thiscpu = max + disabled_cpus;
 
-		pr_warning(
-			"APIC: NR_CPUS/possible_cpus limit of %i reached."
-			"  Processor %d/0x%x ignored.\n", max, thiscpu, apicid);
+		if (enabled) {
+			pr_warning("APIC: NR_CPUS/possible_cpus limit of %i "
+				   "reached. Processor %d/0x%x ignored.\n",
+				   max, thiscpu, apicid);
+		}
 
 		disabled_cpus++;
 		return -EINVAL;
@@ -2154,21 +2157,6 @@ int __generic_processor_info(int apicid, int version, bool enabled)
 			disabled_cpus++;
 			return -EINVAL;
 		}
-	}
-
-	/*
-	 * This can happen on physical hotplug. The sanity check at boot time
-	 * is done from native_smp_prepare_cpus() after num_possible_cpus() is
-	 * established.
-	 */
-	if (topology_update_package_map(apicid, cpu) < 0) {
-		int thiscpu = max + disabled_cpus;
-
-		pr_warning("APIC: Package limit reached. Processor %d/0x%x ignored.\n",
-			   thiscpu, apicid);
-
-		disabled_cpus++;
-		return -ENOSPC;
 	}
 
 	/*
@@ -2261,6 +2249,7 @@ void __init apic_set_eoi_write(void (*eoi_write)(u32 reg, u32 v))
 	for (drv = __apicdrivers; drv < __apicdrivers_end; drv++) {
 		/* Should happen once for each apic */
 		WARN_ON((*drv)->eoi_write == eoi_write);
+		(*drv)->native_eoi_write = (*drv)->eoi_write;
 		(*drv)->eoi_write = eoi_write;
 	}
 }

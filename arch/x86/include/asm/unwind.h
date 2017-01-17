@@ -12,7 +12,8 @@ struct unwind_state {
 	struct task_struct *task;
 	int graph_idx;
 #ifdef CONFIG_FRAME_POINTER
-	unsigned long *bp;
+	unsigned long *bp, *orig_sp;
+	struct pt_regs *regs;
 #else
 	unsigned long *sp;
 #endif
@@ -22,6 +23,8 @@ void __unwind_start(struct unwind_state *state, struct task_struct *task,
 		    struct pt_regs *regs, unsigned long *first_frame);
 
 bool unwind_next_frame(struct unwind_state *state);
+
+unsigned long unwind_get_return_address(struct unwind_state *state);
 
 static inline bool unwind_done(struct unwind_state *state)
 {
@@ -45,10 +48,16 @@ unsigned long *unwind_get_return_address_ptr(struct unwind_state *state)
 	if (unwind_done(state))
 		return NULL;
 
-	return state->bp + 1;
+	return state->regs ? &state->regs->ip : state->bp + 1;
 }
 
-unsigned long unwind_get_return_address(struct unwind_state *state);
+static inline struct pt_regs *unwind_get_entry_regs(struct unwind_state *state)
+{
+	if (unwind_done(state))
+		return NULL;
+
+	return state->regs;
+}
 
 #else /* !CONFIG_FRAME_POINTER */
 
@@ -58,14 +67,9 @@ unsigned long *unwind_get_return_address_ptr(struct unwind_state *state)
 	return NULL;
 }
 
-static inline
-unsigned long unwind_get_return_address(struct unwind_state *state)
+static inline struct pt_regs *unwind_get_entry_regs(struct unwind_state *state)
 {
-	if (unwind_done(state))
-		return 0;
-
-	return ftrace_graph_ret_addr(state->task, &state->graph_idx,
-				     *state->sp, state->sp);
+	return NULL;
 }
 
 #endif /* CONFIG_FRAME_POINTER */

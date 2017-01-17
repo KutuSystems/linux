@@ -74,6 +74,7 @@ static const struct i2c_device_id pca953x_id[] = {
 	{ "max7312", 16 | PCA953X_TYPE | PCA_INT, },
 	{ "max7313", 16 | PCA953X_TYPE | PCA_INT, },
 	{ "max7315", 8  | PCA953X_TYPE | PCA_INT, },
+	{ "max7318", 16 | PCA953X_TYPE | PCA_INT, },
 	{ "pca6107", 8  | PCA953X_TYPE | PCA_INT, },
 	{ "tca6408", 8  | PCA953X_TYPE | PCA_INT, },
 	{ "tca6416", 16 | PCA953X_TYPE | PCA_INT, },
@@ -372,14 +373,15 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
 
 	bank_shift = fls((chip->gpio_chip.ngpio - 1) / BANK_SZ);
 
-	memcpy(reg_val, chip->reg_output, NBANK(chip));
 	mutex_lock(&chip->i2c_lock);
+	memcpy(reg_val, chip->reg_output, NBANK(chip));
 	for (bank = 0; bank < NBANK(chip); bank++) {
 		bank_mask = mask[bank / sizeof(*mask)] >>
 			   ((bank % sizeof(*mask)) * 8);
 		if (bank_mask) {
 			bank_val = bits[bank / sizeof(*bits)] >>
 				  ((bank % sizeof(*bits)) * 8);
+			bank_val &= bank_mask;
 			reg_val[bank] = (reg_val[bank] & ~bank_mask) | bank_val;
 		}
 	}
@@ -607,7 +609,6 @@ static int pca953x_irq_setup(struct pca953x_chip *chip,
 
 	if (client->irq && irq_base != -1
 			&& (chip->driver_data & PCA_INT)) {
-
 		ret = pca953x_read_regs(chip,
 					chip->regs->input, chip->irq_stat);
 		if (ret)
@@ -635,20 +636,20 @@ static int pca953x_irq_setup(struct pca953x_chip *chip,
 			return ret;
 		}
 
-		ret =  gpiochip_irqchip_add(&chip->gpio_chip,
-					    &pca953x_irq_chip,
-					    irq_base,
-					    handle_simple_irq,
-					    IRQ_TYPE_NONE);
+		ret =  gpiochip_irqchip_add_nested(&chip->gpio_chip,
+						   &pca953x_irq_chip,
+						   irq_base,
+						   handle_simple_irq,
+						   IRQ_TYPE_NONE);
 		if (ret) {
 			dev_err(&client->dev,
 				"could not connect irqchip to gpiochip\n");
 			return ret;
 		}
 
-		gpiochip_set_chained_irqchip(&chip->gpio_chip,
-					     &pca953x_irq_chip,
-					     client->irq, NULL);
+		gpiochip_set_nested_irqchip(&chip->gpio_chip,
+					    &pca953x_irq_chip,
+					    client->irq);
 	}
 
 	return 0;
@@ -732,7 +733,7 @@ out:
 static const struct of_device_id pca953x_dt_ids[];
 
 static int pca953x_probe(struct i2c_client *client,
-				   const struct i2c_device_id *id)
+				   const struct i2c_device_id *i2c_id)
 {
 	struct pca953x_platform_data *pdata;
 	struct pca953x_chip *chip;
@@ -773,27 +774,45 @@ static int pca953x_probe(struct i2c_client *client,
 	}
 	chip->regulator = reg;
 
-	if (id) {
-		chip->driver_data = id->driver_data;
+	if (i2c_id) {
+		chip->driver_data = i2c_id->driver_data;
 	} else {
-		const struct acpi_device_id *id;
+		const struct acpi_device_id *acpi_id;
 		const struct of_device_id *match;
 
 		match = of_match_device(pca953x_dt_ids, &client->dev);
 		if (match) {
 			chip->driver_data = (int)(uintptr_t)match->data;
 		} else {
-			id = acpi_match_device(pca953x_acpi_ids, &client->dev);
-			if (!id) {
+			acpi_id = acpi_match_device(pca953x_acpi_ids, &client->dev);
+			if (!acpi_id) {
 				ret = -ENODEV;
 				goto err_exit;
 			}
 
-			chip->driver_data = id->driver_data;
+			chip->driver_data = acpi_id->driver_data;
 		}
 	}
 
 	mutex_init(&chip->i2c_lock);
+	/*
+	 * In case we have an i2c-mux controlled by a GPIO provided by an
+	 * expander using the same driver higher on the device tree, read the
+	 * i2c adapter nesting depth and use the retrieved value as lockdep
+	 * subclass for chip->i2c_lock.
+	 *
+	 * REVISIT: This solution is not complete. It protects us from lockdep
+	 * false positives when the expander controlling the i2c-mux is on
+	 * a different level on the device tree, but not when it's on the same
+	 * level on a different branch (in which case the subclass number
+	 * would be the same).
+	 *
+	 * TODO: Once a correct solution is developed, a similar fix should be
+	 * applied to all other i2c-controlled GPIO expanders (and potentially
+	 * regmap-i2c).
+	 */
+	lockdep_set_subclass(&chip->i2c_lock,
+			     i2c_adapter_depth(client->adapter));
 
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
@@ -889,6 +908,7 @@ static const struct of_device_id pca953x_dt_ids[] = {
 	{ .compatible = "maxim,max7312", .data = OF_953X(16, PCA_INT), },
 	{ .compatible = "maxim,max7313", .data = OF_953X(16, PCA_INT), },
 	{ .compatible = "maxim,max7315", .data = OF_953X( 8, PCA_INT), },
+	{ .compatible = "maxim,max7318", .data = OF_953X(16, PCA_INT), },
 
 	{ .compatible = "ti,pca6107", .data = OF_953X( 8, PCA_INT), },
 	{ .compatible = "ti,pca9536", .data = OF_953X( 4, 0), },
